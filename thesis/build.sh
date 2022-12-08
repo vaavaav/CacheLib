@@ -17,7 +17,7 @@
 set -e
 
 # Root directory for the CacheLib project
-CLBASE="$PWD/../.."
+CLBASE="$PWD/.."
 
 # Additional "FindXXX.cmake" files are here (e.g. FindSodium.cmake)
 CLCMAKE="$CLBASE/cachelib/cmake"
