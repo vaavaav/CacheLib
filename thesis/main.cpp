@@ -33,26 +33,52 @@ using CacheReadHandle = typename Cache::ReadHandle;
 
 // Global cache object and a default cache pool
 std::unique_ptr<Cache> gCache_;
-cachelib::PoolId pools[3];
 
 // Global sockets 
 zmq::context_t singleton_context;
 
-void poolDataPlane_ish(std::string pool_id_str, int init_size) {
-    zmq::socket_t metrics_sock (singleton_context, zmq::socket_type::push);
-    metrics_sock.connect("ipc://" + metrics_socket_address);
+void metricSender(cachelib::PoolId pool_id) {
+  zmq::socket_t metrics_sock (singleton_context, zmq::socket_type::push);
+  metrics_sock.connect("ipc://" + metrics_socket_address);
 
-    auto pool_id = gCache_->addPool(pool_id_str, init_size);
+  while(true) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      auto pool_stats = gCache_->getPoolStats(pool_id);
+      std::ostringstream message_ss;
+      message_ss << pool_stats.poolName << " " << pool_stats.poolSize << " " << pool_stats.numPoolGetHits;
+      zmq::message_t message (message_ss.str());
+      metrics_sock.send(message); //deprecated
+  } 
+
+  metrics_sock.close();
+}
+
+void commandReceiver(cachelib::PoolId pool_id) {
+  zmq::socket_t socket (singleton_context, zmq::socket_type::pull);
+  socket.bind("ipc://" + gCache_->getPoolStats(pool_id).poolName);
+
+  while(true) {
+      zmq::message_t message;
+      socket.recv(&message);
+      auto new_size = std::stoi (message.to_string());
+      
+      auto curr_size = gCache_->getPoolStats(pool_id).poolSize; 
+      if (new_size <  curr_size) {
+        gCache_->shrinkPool(pool_id, curr_size-new_size);
+      } else {
+        gCache_->growPool(pool_id, new_size-curr_size);
+      }
+  } 
+
+  socket.close();
+}
+
+void poolDataPlane_ish(std::string pool_id_str, int init_size) {
+
+  auto pool_id = gCache_->addPool(pool_id_str, init_size);
+  std::thread(metricSender, pool_id).detach();
+  std::thread(commandReceiver, pool_id).detach();
     
-    while(true) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        auto pool_stats = gCache_->getPoolStats(pool_id);
-        std::ostringstream message_ss;
-        message_ss << pool_id_str << " " << pool_stats.poolSize << " " << pool_stats.numPoolGetHits;
-        zmq::message_t message (message_ss.str());
-        metrics_sock.send(message); //deprecated
-    } 
-    metrics_sock.close();
 }
 
 void initializeCache() {
@@ -72,15 +98,7 @@ void destroyCache() { gCache_.reset(); }
 
 CacheReadHandle get(CacheKey key) { return gCache_->find(key); }
 
-bool put(CacheKey key, const std::string& value) {
-  auto handle = gCache_->allocate(pools[0], key, value.size());
-  if (!handle) {
-    return false; // cache may fail to evict due to too many pending writes
-  }
-  std::memcpy(handle->getMemory(), value.data(), value.size());
-  gCache_->insertOrReplace(handle);
-  return true;
-}
+
 } // namespace cachelib_examples
 } // namespace facebook
 
@@ -92,11 +110,11 @@ int main(int argc, char** argv) {
   initializeCache();
 
   int number_of_instances { sizeof instances / sizeof instances[0] };
-  std::thread data_plane_stages[number_of_instances]; 
   for (int i = 0; i < number_of_instances; i++) {
-    data_plane_stages[i] = std::thread(poolDataPlane_ish, instances[i], (int) gCache_->getCacheMemoryStats().cacheSize/number_of_instances);
+    poolDataPlane_ish(instances[i], (int) gCache_->getCacheMemoryStats().cacheSize/number_of_instances);
   }
-  data_plane_stages[0].join();
+
+  std::cin.ignore();
 
   destroyCache();
 }
