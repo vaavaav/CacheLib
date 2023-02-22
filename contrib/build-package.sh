@@ -158,6 +158,7 @@ case "$1" in
     REPO=https://github.com/fmtlib/fmt.git
     REPODIR=cachelib/external/$NAME
     SRCDIR=$REPODIR
+    external_git_tag="8.1.1"
     external_git_clone=yes
     cmake_custom_params="-DBUILD_SHARED_LIBS=ON"
     if test "$build_tests" = "yes" ; then
