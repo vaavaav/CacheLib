@@ -23,6 +23,7 @@ add_thrift_file(DATASTRUCT_TESTS
 add_thrift_file(MEMORY_SERIALIZE
                 memory/serialize/objects.thrift frozen2)
 
+
 add_library (cachelib_allocator
   ${SERIALIZE_THRIFT_FILES}
   ${DATASTRUCT_SERIALIZE_THRIFT_FILES}
@@ -63,6 +64,7 @@ target_link_libraries(cachelib_allocator PUBLIC
   cachelib_navy
   cachelib_common
   cachelib_shm
+  holpaca
   )
 
 if ((CMAKE_SYSTEM_NAME STREQUAL Linux) AND
