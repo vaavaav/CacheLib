@@ -61,6 +61,7 @@ NAME: the dependency to build supported values are:
   googlelog, googleflags, googletest,
   fmt, sparsemap,
   folly, fizz, wangle, fbthrift,
+  holpaca
   cachelib
 
   "
@@ -231,6 +232,11 @@ case "$1" in
     SRCDIR=cachelib/external/$NAME
     update_submodules=yes
     cmake_custom_params="-DBUILD_SHARED_LIBS=ON"
+    ;;
+
+  holpaca)
+    NAME=holpaca
+    SRCDIR=cachelib/external/$NAME
     ;;
 
   cachelib)

@@ -1,0 +1,2 @@
+/usr/bin/ar qc lib/libholpaca.a  CMakeFiles/holpaca.dir/src/data_plane/autonomous_stage.cpp.o CMakeFiles/holpaca.dir/src/control_algorithm/naive_control_algorithm.cpp.o
+/usr/bin/ranlib lib/libholpaca.a

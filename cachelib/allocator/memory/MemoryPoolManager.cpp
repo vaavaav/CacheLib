@@ -326,3 +326,5 @@ PoolAdviseReclaimData MemoryPoolManager::calcNumSlabsToAdviseReclaim(
   }
   return results;
 }
+
+void MemoryPoolManager::resize(holpaca::id_t cache_id, size_t const new_size) {}

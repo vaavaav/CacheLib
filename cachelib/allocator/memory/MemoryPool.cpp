@@ -523,3 +523,4 @@ MPStats MemoryPool::getStats() const {
                  slabsUnAllocated,    nSlabResize_,       nSlabRebalance_,
                  curSlabsAdvised_};
 }
+

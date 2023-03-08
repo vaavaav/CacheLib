@@ -3,12 +3,10 @@
 #include <holpaca/config.h>
 #include <holpaca/data_plane/stage_interface.h>
 #include <memory>
-#include <spdlog/spdlog.h>
-#include <string>
+#include <holpaca/config.h>
 #include <unordered_map>
 #include <zmq.hpp>
 
-using namespace holpaca::config::control_plane;
 using namespace holpaca::data_plane;
 
 namespace holpaca::control_plane {
@@ -21,6 +19,7 @@ namespace holpaca::control_plane {
       void run();
 
       public:
-        Controller(char const* log_file = {controller_log_file}, char const* registry_socket_address = { controller_registry_socket_address});
+        Controller(char const* log_file = {config::controller_log_file},
+                   char const* registry_socket_address = {config::controller_registry_socket_address});
     };
 }

@@ -36,7 +36,9 @@ MemoryAllocator::MemoryAllocator(Config config,
       slabAllocator_(memoryStart,
                      memSize,
                      {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(slabAllocator_) {
+      memoryPoolManager_(slabAllocator_),
+      holpaca_stage( std::make_unique<holpaca::data_plane::AutonomousStage>(std::make_shared<MemoryPoolManager>(slabAllocator_)))
+       {
   checkConfig(config_);
 }
 
@@ -44,7 +46,9 @@ MemoryAllocator::MemoryAllocator(Config config, size_t memSize)
     : config_(std::move(config)),
       slabAllocator_(memSize,
                      {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(slabAllocator_) {
+      memoryPoolManager_(slabAllocator_),
+      holpaca_stage( std::make_unique<holpaca::data_plane::AutonomousStage>(std::make_shared<MemoryPoolManager>(slabAllocator_)))
+      {
   checkConfig(config_);
 }
 
@@ -62,7 +66,9 @@ MemoryAllocator::MemoryAllocator(
                      memoryStart,
                      memSize,
                      {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(*object.memoryPoolManager(), slabAllocator_) {
+      memoryPoolManager_(*object.memoryPoolManager(), slabAllocator_),
+      holpaca_stage( std::make_unique<holpaca::data_plane::AutonomousStage>(std::make_shared<MemoryPoolManager>(*object.memoryPoolManager(), slabAllocator_)))
+       {
   checkConfig(config_);
 }
 

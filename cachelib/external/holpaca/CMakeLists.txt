@@ -66,7 +66,8 @@ foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
 endforeach()
 
 set("${PROJECT_NAME}_SOURCES"
-  src/data_plane/stage.cpp
+  src/data_plane/autonomous_stage.cpp
+  src/control_algorithm/naive_control_algorithm.cpp
 )
 
 add_library(${PROJECT_NAME}
@@ -115,21 +116,4 @@ install(EXPORT ${PROJECT_NAME}-exports
   FILE ${PROJECT_NAME}-targets.cmake
   NAMESPACE ${PROJECT_NAME}::
   DESTINATION ${CMAKE_INSTALL_DIR}
-)
-
-add_executable(controller
-  "${${PROJECT_NAME}_HEADERS}"
-  src/control_plane/stage_proxy.cpp
-  src/control_plane/controller.cpp
-)
-
-target_link_libraries(controller
-  cppzmq
-  spdlog::spdlog
-)
-target_include_directories(
-  controller
-  PUBLIC
-		"$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
-    "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
 )

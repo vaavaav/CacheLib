@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/gsd/CacheLib/thesis/constants.hpp
+string
+-
+
+/home/gsd/CacheLib/thesis/control_plane/controller.cpp
+zmq.hpp
+-
+../constants.hpp
+/home/gsd/CacheLib/thesis/constants.hpp
+iostream
+-
+thread
+-
+fstream
+-
+iostream
+-
+

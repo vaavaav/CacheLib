@@ -1,7 +1,6 @@
 #pragma once
 #include <zmq.hpp>
 #include <vector>
-#include "snapshot.h"
 
 namespace holpaca {
     class Message {

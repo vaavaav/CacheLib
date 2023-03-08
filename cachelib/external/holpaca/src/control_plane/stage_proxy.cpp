@@ -24,14 +24,8 @@ namespace holpaca::control_plane {
         }
     }
 
+    void StageProxy::resize(id_t cache_id, size_t new_size) {}
+    std::map<id_t, size_t> StageProxy::getSizes() {}
+    std::map<id_t, size_t> StageProxy::getHits() {}
 
-    std::vector<snapshot_t> StageProxy::getFullSnapshot() {
-        //PLOGI << "getFullSnapshot()";
-
-        return {};
-    }
-
-    void StageProxy::resizeCache(id_t cache_id, size_t const new_size) {
-        //PLOGI << "resizeCache( " << cache_id << ", "  << new_size << " )";
-    }
 }

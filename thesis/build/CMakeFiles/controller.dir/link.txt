@@ -1,0 +1,1 @@
+/usr/bin/c++  -g   CMakeFiles/controller.dir/control_plane/controller.cpp.o  -o controller  -lpthread /usr/lib/x86_64-linux-gnu/libzmq.so 

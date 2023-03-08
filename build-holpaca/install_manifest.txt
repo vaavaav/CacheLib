@@ -1,0 +1,17 @@
+/home/gsd/CacheLib/opt/cachelib/lib/cmake/holpaca/libspdlogd.a
+/home/gsd/CacheLib/opt/cachelib/lib/libholpaca.a
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/config.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/control_plane/controller.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/control_plane/stage_proxy.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/utils/zmq_extra.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/utils/types.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/utils/message.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/control_algorithm/naive_control_algorithm.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/control_algorithm/control_algorithm.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/data_plane/detached_stage.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/data_plane/cache.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/data_plane/stage.h
+/home/gsd/CacheLib/opt/cachelib/include/holpaca/data_plane/autonomous_stage.h
+/home/gsd/CacheLib/opt/cachelib/lib/cmake/holpaca/holpaca-config.cmake
+/home/gsd/CacheLib/opt/cachelib/lib/cmake/holpaca/holpaca-targets.cmake
+/home/gsd/CacheLib/opt/cachelib/lib/cmake/holpaca/holpaca-targets-debug.cmake
