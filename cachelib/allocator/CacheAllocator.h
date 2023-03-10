@@ -79,6 +79,10 @@
 #include "cachelib/common/Utils.h"
 #include "cachelib/shm/ShmManager.h"
 
+#include <holpaca/data_plane/cache.h>
+#include <holpaca/data_plane/autonomous_stage.h>
+#include <holpaca/data_plane/stage.h>
+
 namespace facebook {
 namespace cachelib {
 
@@ -172,7 +176,7 @@ class GET_CLASS_NAME(ObjectCache, ObjectHandleInvalid);
 // find/insert/remove interface similar to a hash table.
 //
 template <typename CacheTrait>
-class CacheAllocator : public CacheBase {
+class CacheAllocator : public CacheBase, public holpaca::data_plane::Cache {
  public:
   using CacheT = CacheAllocator<CacheTrait>;
   using MMType = typename CacheTrait::MMType;
@@ -1011,6 +1015,8 @@ class CacheAllocator : public CacheBase {
   // @param reaperThrottleConfig    throttling config
   bool startNewReaper(std::chrono::milliseconds interval,
                       util::Throttler::Config reaperThrottleConfig);
+  template<typename T, typename... Args>
+  bool startNewHolpacaStage(std::chrono::milliseconds interval, Args&&... args);
 
   // Stop existing workers with a timeout
   bool stopPoolRebalancer(std::chrono::seconds timeout = std::chrono::seconds{
@@ -1020,6 +1026,7 @@ class CacheAllocator : public CacheBase {
                              0});
   bool stopMemMonitor(std::chrono::seconds timeout = std::chrono::seconds{0});
   bool stopReaper(std::chrono::seconds timeout = std::chrono::seconds{0});
+  bool stopHolpacaStage(std::chrono::seconds timeout = std::chrono::seconds{0});
 
   // Set pool optimization to either true or false
   //
@@ -2023,6 +2030,9 @@ class CacheAllocator : public CacheBase {
   // free memory monitor
   std::unique_ptr<MemoryMonitor> memMonitor_;
 
+  // holpaca
+  std::unique_ptr<holpaca::data_plane::Stage> holpaca_stage_;
+
   // check whether a pool is a slabs pool
   std::array<bool, MemoryPoolManager::kMaxPools> isCompactCachePool_{};
 
@@ -2108,6 +2118,31 @@ class CacheAllocator : public CacheBase {
   friend class GET_DECORATED_CLASS_NAME(objcache::test,
                                         ObjectCache,
                                         ObjectHandleInvalid);
+  public:
+    void resize(holpaca::Id cache_id, size_t new_size) override final {
+      auto pool_id = static_cast<PoolId>(cache_id);
+      auto pool_size = getPoolStats(pool_id).poolSize;
+      if(pool_size < new_size) {
+        growPool(pool_id, new_size - pool_size);
+      } else {
+        shrinkPool(pool_id, pool_size - new_size);
+      }
+    }
+    std::map<holpaca::Id, holpaca::Status> getStatus() override final {
+      std::map<holpaca::Id, holpaca::Status> result = {};
+      for (auto const& id : getPoolIds()) {
+        auto pool_stats = getPoolStats(id);
+        result.insert(std::pair<holpaca::Id,holpaca::Status>(
+          static_cast<holpaca::Id>(id), 
+          holpaca::Status {
+            pool_stats.poolSize,
+            0,
+            static_cast<uint32_t>(pool_stats.numPoolGetHits)
+          }
+        ));
+      }
+      return result;
+    }
 };
 } // namespace cachelib
 } // namespace facebook
@@ -2143,5 +2178,8 @@ using Lru2QAllocator = CacheAllocator<Lru2QCacheTrait>;
 // inserted items. And eventually it will onl admit items that are accessed
 // beyond a threshold into the warm cache.
 using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
+
+
+
 } // namespace cachelib
 } // namespace facebook

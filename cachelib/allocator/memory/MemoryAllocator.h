@@ -31,9 +31,6 @@
 
 #include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 
-#include <holpaca/data_plane/stage.h>
-#include <holpaca/data_plane/autonomous_stage.h>
-
 namespace facebook {
 namespace cachelib {
 
@@ -663,9 +660,6 @@ class MemoryAllocator {
   // the instance used for book keeping information about the memory pools
   // configuration.
   MemoryPoolManager memoryPoolManager_;
-
-  // holpaca stage
-  std::unique_ptr<holpaca::data_plane::Stage> holpaca_stage; 
 
 
   // Allow access to private members by unit tests

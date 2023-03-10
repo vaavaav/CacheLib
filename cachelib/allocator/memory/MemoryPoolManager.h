@@ -21,6 +21,7 @@
 #include <array>
 #include <memory>
 #include <unordered_map>
+#include <map>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -32,8 +33,6 @@
 #include "cachelib/allocator/memory/SlabAllocator.h"
 #include "cachelib/allocator/memory/serialize/gen-cpp2/objects_types.h"
 
-#include <holpaca/data_plane/cache.h>
-
 namespace facebook {
 namespace cachelib {
 
@@ -43,7 +42,7 @@ struct PoolAdviseReclaimData {
 };
 // used to organize the available memory into pools and identify them by a
 // string name or pool id.
-class MemoryPoolManager : public holpaca::data_plane::Cache {
+class MemoryPoolManager {
  public:
   // maximum number of pools that we support.
   static constexpr unsigned int kMaxPools = 64;
@@ -232,8 +231,6 @@ class MemoryPoolManager : public holpaca::data_plane::Cache {
 
   // Allow access to private members by unit tests
   friend class facebook::cachelib::tests::AllocTestBase;
-
-  void resize(holpaca::id_t cache_id, size_t new_size) override final; 
 };
 } // namespace cachelib
 } // namespace facebook

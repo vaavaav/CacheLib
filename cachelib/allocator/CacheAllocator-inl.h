@@ -21,13 +21,16 @@ namespace cachelib {
 
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::CacheAllocator(Config config)
-    : CacheAllocator(InitMemType::kNone, config) {
+    : CacheAllocator(InitMemType::kNone, config) 
+     {
+  { }
   initCommon(false);
 }
 
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::CacheAllocator(SharedMemNewT, Config config)
     : CacheAllocator(InitMemType::kMemNew, config) {
+  {}
   initCommon(false);
   shmManager_->removeShm(detail::kShmInfoName);
 }
@@ -35,6 +38,7 @@ CacheAllocator<CacheTrait>::CacheAllocator(SharedMemNewT, Config config)
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::CacheAllocator(SharedMemAttachT, Config config)
     : CacheAllocator(InitMemType::kMemAttach, config) {
+  {}
   for (auto pid : *metadata_.compactCachePools()) {
     isCompactCachePool_[pid] = true;
   }
@@ -226,6 +230,7 @@ void CacheAllocator<CacheTrait>::initWorkers() {
                           config_.poolOptimizeStrategy,
                           config_.ccacheOptimizeStepSizePercent);
   }
+  startNewHolpacaStage<holpaca::data_plane::AutonomousStage>(std::chrono::milliseconds(5000));
 }
 
 template <typename CacheTrait>
@@ -3124,6 +3129,7 @@ bool CacheAllocator<CacheTrait>::stopWorkers(std::chrono::seconds timeout) {
   success &= stopPoolResizer(timeout);
   success &= stopMemMonitor(timeout);
   success &= stopReaper(timeout);
+  success &= stopHolpacaStage(timeout);
   return success;
 }
 
@@ -3521,6 +3527,31 @@ bool CacheAllocator<CacheTrait>::startNewReaper(
 }
 
 template <typename CacheTrait>
+template <typename T, typename... Args>
+bool CacheAllocator<CacheTrait>::startNewHolpacaStage( 
+  std::chrono::milliseconds interval,
+  Args&&... args
+) {
+  if (!stopHolpacaStage()) {
+    return false;
+  }
+
+  bool ret = true;
+  std::lock_guard<std::mutex> l(workersMutex_);
+  try {
+    holpaca_stage_ = std::make_unique<T>(this, std::forward<Args>(args)...);
+  } catch (...) {
+    XLOGF(ERR, "Couldn't start worker '{}', interval: {} milliseconds", "Holpaca",
+          interval.count());
+    ret = false;
+  } 
+  if (ret) {
+    XLOGF(DBG1, "Started worker '{}'", "Holpaca");
+  }
+  return ret;
+}
+
+template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::stopPoolRebalancer(
     std::chrono::seconds timeout) {
   return stopWorker("PoolRebalancer", poolRebalancer_, timeout);
@@ -3546,6 +3577,26 @@ template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::stopReaper(std::chrono::seconds timeout) {
   return stopWorker("Reaper", reaper_, timeout);
 }
+
+template <typename CacheTrait>
+bool CacheAllocator<CacheTrait>::stopHolpacaStage(std::chrono::seconds timeout) {
+  std::lock_guard<std::mutex> l(workersMutex_);
+  if (!holpaca_stage_) {
+    return true;
+  }
+  bool ret = true;
+  try {
+    holpaca_stage_.reset();
+  } catch (...) {
+    XLOGF(ERR, "Couldn't stop worker '{}', timeout: {} seconds", "Holpaca",
+          timeout.count());
+    ret = false;
+  } 
+  if(ret) {
+    XLOGF(DBG1, "Stopped worker '{}'", "Holpaca");
+  }
+  return ret;
+} 
 
 template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::cleanupStrayShmSegments(

@@ -21,6 +21,8 @@
 #include <folly/Format.h>
 #pragma GCC diagnostic pop
 
+#include <numeric>
+
 using namespace facebook::cachelib;
 
 constexpr unsigned int MemoryPoolManager::kMaxPools;
@@ -326,5 +328,3 @@ PoolAdviseReclaimData MemoryPoolManager::calcNumSlabsToAdviseReclaim(
   }
   return results;
 }
-
-void MemoryPoolManager::resize(holpaca::id_t cache_id, size_t const new_size) {}

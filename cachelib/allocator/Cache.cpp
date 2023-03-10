@@ -66,5 +66,6 @@ std::shared_ptr<PoolOptimizeStrategy> CacheBase::getPoolOptimizeStrategy()
   std::unique_lock<std::mutex> l(lock_);
   return poolOptimizeStrategy_;
 }
+
 } // namespace cachelib
 } // namespace facebook
