@@ -230,7 +230,9 @@ void CacheAllocator<CacheTrait>::initWorkers() {
                           config_.poolOptimizeStrategy,
                           config_.ccacheOptimizeStepSizePercent);
   }
-  startNewHolpacaStage<holpaca::data_plane::AutonomousStage>(std::chrono::milliseconds(5000));
+  if (config_.enable_holpaca) {
+    startNewHolpacaStage<holpaca::data_plane::AutonomousStage>(std::chrono::milliseconds(5000));
+  }
 }
 
 template <typename CacheTrait>
@@ -3535,6 +3537,7 @@ bool CacheAllocator<CacheTrait>::startNewHolpacaStage(
   if (!stopHolpacaStage()) {
     return false;
   }
+
 
   bool ret = true;
   std::lock_guard<std::mutex> l(workersMutex_);

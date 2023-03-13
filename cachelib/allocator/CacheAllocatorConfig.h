@@ -263,6 +263,8 @@ class CacheAllocatorConfig {
       std::chrono::seconds ccacheInterval,
       uint32_t ccacheStepSizePercent);
 
+  CacheAllocatorConfig& enableHolpaca();
+
   // This enables an optimization for Pool rebalancing and resizing.
   // The rough idea is to ensure only the least useful items are evicted when
   // we move slab memory around. Come talk to Cache Library team if you think
@@ -465,6 +467,9 @@ class CacheAllocatorConfig {
   // for regular pools and compact caches
   std::chrono::seconds regularPoolOptimizeInterval{0};
   std::chrono::seconds compactCacheOptimizeInterval{0};
+
+  //holpaca
+  bool enable_holpaca {false};
 
   // step size for compact cache size optimization: how many percents of the
   // victim to move
@@ -930,6 +935,12 @@ CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enablePoolOptimizer(
     throw std::invalid_argument(
         "Invalid pool optimize strategy for the cache allocator.");
   }
+  return *this;
+}
+
+template <typename T>
+CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enableHolpaca() {
+  enable_holpaca = true;
   return *this;
 }
 

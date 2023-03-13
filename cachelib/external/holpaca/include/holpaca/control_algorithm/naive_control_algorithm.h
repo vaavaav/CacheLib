@@ -4,32 +4,34 @@
 #include <holpaca/utils/types.h>
 #include <cstddef>
 #include <unordered_map>
+#include <iostream>
+#include <optional>
 
 using namespace holpaca::data_plane;
 
 namespace holpaca::control_algorithm {
     class NaiveControlAlgorithm : public ControlAlgorithm {
         NaiveControlAlgorithm() = delete;
-        std::shared_ptr<Cache> cache;
+        Cache* cache {NULL};
 
-        struct stats {
+        struct Stats {
             uint32_t hits;
             size_t size; 
         };
-        std::unordered_map<id_t, stats> stats;
-        struct solution {
+        std::unordered_map<id_t, Stats> stats;
+        struct Solution {
             Id giver;
             size_t delta;
             Id taker;
         };
-        solution solution;
+        std::optional<Solution> solution;
         void collect() override final;
         void compute() override final;
         void enforce() override final;
         public:
             float const hit_rate_threashold { 0.3f };
-            NaiveControlAlgorithm(std::shared_ptr<Cache> cache) :
-                ControlAlgorithm { 1s }
+            NaiveControlAlgorithm(Cache* cache, std::chrono::milliseconds periodicity) :
+                cache(cache), ControlAlgorithm (periodicity)
             {}
     };
 }

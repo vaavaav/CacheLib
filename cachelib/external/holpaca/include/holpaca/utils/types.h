@@ -3,5 +3,5 @@
 #include <chrono>
 
 namespace holpaca {
-    using Id = size_t;
+    using Id = uint8_t;
 }

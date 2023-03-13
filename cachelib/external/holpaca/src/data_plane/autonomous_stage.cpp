@@ -1,6 +1,7 @@
 #include <holpaca/data_plane/autonomous_stage.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <iostream>
+#include <holpaca/control_algorithm/naive_control_algorithm.h>
 
 namespace holpaca::data_plane {
     AutonomousStage::AutonomousStage(
@@ -14,6 +15,12 @@ namespace holpaca::data_plane {
             abort();
         }
         m_logger->flush_on(spdlog::level::debug);
+        m_control_algorithms.push_back(
+            std::make_shared<NaiveControlAlgorithm>(
+                m_cache,
+                100ms
+            )
+        );
         SPDLOG_LOGGER_INFO(m_logger, "Autonomous Stage created");
     } 
 }
