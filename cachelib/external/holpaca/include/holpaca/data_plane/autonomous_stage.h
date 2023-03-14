@@ -10,13 +10,16 @@ namespace holpaca::data_plane {
     class AutonomousStage : public Stage {
         std::shared_ptr<spdlog::logger> m_logger;
         std::vector<std::shared_ptr<ControlAlgorithm>> m_control_algorithms;
+
         public: 
             AutonomousStage(
                 Cache* cache,
                 char const* log_file = { config::stage_log_file }
             ); 
             ~AutonomousStage() {
+                m_logger->info("Destructing Stage");
                 for(auto& ca : m_control_algorithms) {
+                    m_logger->debug("Destructing control algorithm");
                     ca.reset();
                 }
             }
@@ -25,7 +28,7 @@ namespace holpaca::data_plane {
                 m_control_algorithms.push_back(
                     std::make_shared<T>(m_cache, periodicity)
                 );
-                SPDLOG_LOGGER_INFO(m_logger, "Added Control Algorithm <{}>", typeid(T).name());
+                //m_logger->info("Added control algorithm <{}>", typeid(T).name());
             };
     };
 }

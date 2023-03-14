@@ -4,13 +4,17 @@
 
 using namespace holpaca;
 
-namespace holpaca::data_plane {
-    class Stage {
-        Stage() = delete;
-        protected:
-            Cache* m_cache;
-        public:
-            Stage(Cache* cache) : m_cache(cache) {}
-        
-    };
+namespace holpaca {
+    namespace data_plane {
+        class Stage {
+            public:
+                virtual ~Stage() = 0;
+            protected:
+                Stage() = delete;
+                Cache* m_cache;
+                Stage(Cache* cache) : m_cache(cache) {}
+        };
+
+        inline Stage::~Stage() {};
+    }
 }

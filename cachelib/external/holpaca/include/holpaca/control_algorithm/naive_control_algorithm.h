@@ -3,6 +3,7 @@
 #include <holpaca/data_plane/cache.h>
 #include <holpaca/utils/types.h>
 #include <cstddef>
+#include <memory>
 #include <unordered_map>
 #include <iostream>
 #include <optional>
@@ -12,7 +13,7 @@ using namespace holpaca::data_plane;
 namespace holpaca::control_algorithm {
     class NaiveControlAlgorithm : public ControlAlgorithm {
         NaiveControlAlgorithm() = delete;
-        Cache* cache {NULL};
+        Cache* cache;
 
         struct Stats {
             uint32_t hits;
@@ -33,5 +34,6 @@ namespace holpaca::control_algorithm {
             NaiveControlAlgorithm(Cache* cache, std::chrono::milliseconds periodicity) :
                 cache(cache), ControlAlgorithm (periodicity)
             {}
+            ~NaiveControlAlgorithm() { cache=NULL; }
     };
 }

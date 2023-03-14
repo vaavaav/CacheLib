@@ -3587,18 +3587,9 @@ bool CacheAllocator<CacheTrait>::stopHolpacaStage(std::chrono::seconds timeout) 
   if (!holpaca_stage_) {
     return true;
   }
-  bool ret = true;
-  try {
-    holpaca_stage_.reset();
-  } catch (...) {
-    XLOGF(ERR, "Couldn't stop worker '{}', timeout: {} seconds", "Holpaca",
-          timeout.count());
-    ret = false;
-  } 
-  if(ret) {
-    XLOGF(DBG1, "Stopped worker '{}'", "Holpaca");
-  }
-  return ret;
+  holpaca_stage_.reset();
+  XLOGF(DBG1, "Stopped worker '{}'", "Holpaca");
+  return true;
 } 
 
 template <typename CacheTrait>

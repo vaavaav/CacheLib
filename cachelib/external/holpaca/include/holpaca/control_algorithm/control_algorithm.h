@@ -5,7 +5,6 @@
 #include <memory>
 #include <thread>
 #include <chrono>
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -30,24 +29,20 @@ namespace holpaca::control_algorithm {
                 }
                 m_logger->flush_on(spdlog::level::trace);
                 m_logger->set_level(spdlog::level::debug);
-                    m_thread = std::thread {
-                    try {
-                            [this, periodicity]() {
-                                while(!m_stop) {
-                                    collect();compute();enforce();
-                                    std::this_thread::sleep_for(periodicity);
-                                }
+                m_thread = std::thread {
+                        [this, periodicity]() {
+                            while(!m_stop) {
+                                collect();compute();enforce();
+                                std::this_thread::sleep_for(periodicity);
                             }
-                        } catch (...) {
-                            if(!m_stop) {
-                                std::cerr << "Unexpected error" << std::endl;
-                            }
-                        };
-                    };
+                        }
+                };
             }
             ~ControlAlgorithm() {
+                m_logger->info("Destructing control algorithm");
                 m_stop = true;
                 m_thread.join();
+                m_logger->debug("Thread returned");
             }
     };
 }
