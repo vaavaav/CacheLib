@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,12 +40,17 @@ void initializeCache() {
       .enablePoolOptimizer(std::make_shared<cachelib::PoolOptimizeStrategy>(), std::chrono::seconds(1), std::chrono::seconds(1), 0)
       .validate(); // will throw if bad config
   gCache_ = std::make_unique<Cache>(config);
+<<<<<<< HEAD
   pools[0] =
       gCache_->addPool("default", 0.2*gCache_->getCacheMemoryStats().cacheSize);
   pools[1] =
       gCache_->addPool("pool2", 0.3*gCache_->getCacheMemoryStats().cacheSize);
   pools[2] =
       gCache_->addPool("pool3", 0.5*gCache_->getCacheMemoryStats().cacheSize);
+=======
+  defaultPool_ =
+      gCache_->addPool("default", gCache_->getCacheMemoryStats().ramCacheSize);
+>>>>>>> c8b48b141d58ed08811fa15a4b1e382cd52940fc
 }
 
 void destroyCache() { gCache_.reset(); }
