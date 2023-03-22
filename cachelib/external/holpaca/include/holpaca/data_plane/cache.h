@@ -10,6 +10,7 @@ namespace holpaca::data_plane {
     class Cache {
         public:
             virtual void resize(Id cache_id, size_t new_size) = 0; 
+            virtual void resize(Id src, Id dst, size_t delta) = 0; 
             virtual std::map<Id, Status> getStatus() = 0;
     };
 }

@@ -5,68 +5,61 @@ namespace holpaca {
     namespace control_algorithm {
         void NaiveControlAlgorithm::collect() { 
             m_logger->info("Collecting cache status");
-            try { 
-                auto const& status = cache->getStatus();
-                for (auto const& [id, status] : status) {
-                    m_logger->debug("id={} hits={} size={}", id, status.size, status.hits);
-                    Stats new_stats = {
-                        .hits = status.hits,
-                        .size = status.size
-                    };
-                     auto [it, _] = stats.insert(std::pair<Id, Stats>(id, new_stats));
-                     if(!it->first) {
-                         it->second = new_stats;
-                     }
-                };
-            } catch (...) {
+            if(cache == NULL) {
                 m_logger->warn("error while accessing cache object");
                 return;
             }
+            auto const& status = cache->getStatus();
+            for (auto const& [id, status] : status) {
+                m_logger->debug("id={} hits={} size={} free={}", id, status.hits, status.size, status.free);
+                Stats new_stats = {
+                    .hits = status.hits,
+                    .size = status.size
+                };
+                auto [it, success] = stats.insert(std::pair<Id, Stats>(id, new_stats));
+                if(!success) {
+                    it->second = new_stats;
+                }
+            };
         }
 
         void NaiveControlAlgorithm::compute() {
             m_logger->info("Computing best configuration");
             uint32_t giver_hits {0};
             uint32_t taker_hits {UINT32_MAX}; 
-            bool has_giver {false};
-            bool has_taker {false};
+            if (stats.size() < 2) {
+                m_logger->info("No solution");
+                solution = std::nullopt;
+                return;
+            }
             Solution s {};
             for(auto const& [id, stat] : stats) {
                 if( stat.hits > giver_hits) { // maximize
                     giver_hits = stat.hits;
                     s.giver = id;
-                    has_giver = true;
-                } else if (stat.hits < taker_hits) { // minimize
+                } 
+                if (stat.hits < taker_hits) { // minimize
                     taker_hits = stat.hits;
                     s.taker = id;
-                    has_taker = true;
                 }
             }
-            if (has_giver && has_taker){
-                s.delta = static_cast<size_t>(
-                    stats[s.giver].size * 0.01 * (static_cast<float>(taker_hits) / static_cast<float>(giver_hits))
-                );
-                m_logger->debug("Solution: {}->{} (delta:{})", s.giver, s.taker, s.delta);
-                solution = s;
-            } else {
-                solution = std::nullopt;
-            }
+            double const ratio = 0.1 * static_cast<double>(taker_hits) / static_cast<double>(giver_hits);
+            s.delta = static_cast<size_t>(stats[s.giver].size * ratio);
+            m_logger->debug("Solution: {}->{} (delta:{})", s.giver, s.taker, s.delta);
+            solution = s;
         }
 
         void NaiveControlAlgorithm::enforce() {
+            if (cache == NULL) {
+                m_logger->warn("error while accessing cache object");
+                return;
+            }
             if (solution != std::nullopt) {
                 m_logger->info("Enforcing solution");
                 auto& s = solution.value(); 
-                try {
-                    cache->resize(s.giver, stats[s.giver].size - s.delta);
-                    m_logger->debug("Giver new size = {}", stats[s.giver].size - s.delta);
-                    cache->resize(s.taker, stats[s.taker].size + s.delta);
-                    m_logger->debug("Taker new size = {}", stats[s.taker].size + s.delta);
-                } 
-                catch (...) {
-                    m_logger->warn("error while accessing cache object");
-                    return;
-                }
+                cache->resize(s.giver, s.taker, s.delta);
+                m_logger->debug("Giver new size = {}", stats[s.giver].size - s.delta);
+                m_logger->debug("Taker new size = {}", stats[s.taker].size + s.delta);
             }
         }
     }

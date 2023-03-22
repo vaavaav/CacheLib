@@ -231,7 +231,7 @@ void CacheAllocator<CacheTrait>::initWorkers() {
                           config_.ccacheOptimizeStepSizePercent);
   }
   if (config_.enable_holpaca) {
-    startNewHolpacaStage<holpaca::data_plane::AutonomousStage>(std::chrono::milliseconds(5000));
+    startNewHolpacaStage<holpaca::data_plane::AutonomousStage>(config_.holpaca_periodicity);
   }
 }
 
@@ -3542,7 +3542,7 @@ bool CacheAllocator<CacheTrait>::startNewHolpacaStage(
   bool ret = true;
   std::lock_guard<std::mutex> l(workersMutex_);
   try {
-    holpaca_stage_ = std::make_unique<T>(this, std::forward<Args>(args)...);
+    holpaca_stage_ = std::make_unique<T>(this, interval, std::forward<Args>(args)...);
   } catch (...) {
     XLOGF(ERR, "Couldn't start worker '{}', interval: {} milliseconds", "Holpaca",
           interval.count());

@@ -263,7 +263,9 @@ class CacheAllocatorConfig {
       std::chrono::seconds ccacheInterval,
       uint32_t ccacheStepSizePercent);
 
-  CacheAllocatorConfig& enableHolpaca();
+  CacheAllocatorConfig& enableHolpaca(
+    std::chrono::milliseconds periodicity
+  );
 
   // This enables an optimization for Pool rebalancing and resizing.
   // The rough idea is to ensure only the least useful items are evicted when
@@ -470,6 +472,7 @@ class CacheAllocatorConfig {
 
   //holpaca
   bool enable_holpaca {false};
+  std::chrono::milliseconds holpaca_periodicity{0};
 
   // step size for compact cache size optimization: how many percents of the
   // victim to move
@@ -939,8 +942,11 @@ CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enablePoolOptimizer(
 }
 
 template <typename T>
-CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enableHolpaca() {
+CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enableHolpaca(
+    std::chrono::milliseconds periodicity
+) {
   enable_holpaca = true;
+  holpaca_periodicity = periodicity;
   return *this;
 }
 

@@ -18,6 +18,10 @@ namespace holpaca::control_algorithm {
             virtual void compute() = 0;
             virtual void enforce() = 0;
             std::shared_ptr<spdlog::logger> m_logger;
+            void stop() {
+                m_stop = true;
+                m_thread.join();
+            }
 
         public:
             ControlAlgorithm(std::chrono::milliseconds const periodicity) { 
@@ -37,12 +41,6 @@ namespace holpaca::control_algorithm {
                             }
                         }
                 };
-            }
-            ~ControlAlgorithm() {
-                m_logger->info("Destructing control algorithm");
-                m_stop = true;
-                m_thread.join();
-                m_logger->debug("Thread returned");
             }
     };
 }

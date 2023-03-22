@@ -44,7 +44,7 @@
 #include "cachelib/cachebench/util/NandWrites.h"
 
 DECLARE_bool(report_api_latency);
-DECLARE_bool(enable_holpaca);
+DECLARE_uint64(holpaca_periodicity);
 
 namespace facebook {
 namespace cachelib {

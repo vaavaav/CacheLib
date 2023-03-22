@@ -7,6 +7,7 @@ namespace holpaca{
     namespace data_plane {
         AutonomousStage::AutonomousStage(
             Cache* cache,
+            std::chrono::milliseconds periodicity,
             char const* log_file
         ) : Stage(cache) {
             try {
@@ -20,7 +21,7 @@ namespace holpaca{
             m_control_algorithms.push_back(
                 std::make_shared<NaiveControlAlgorithm>(
                     m_cache,
-                    100ms
+                    periodicity
                 )
             );
             m_logger->info("Autonomous stage created");

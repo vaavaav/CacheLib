@@ -14,8 +14,10 @@ namespace holpaca::data_plane {
         public: 
             AutonomousStage(
                 Cache* cache,
+                std::chrono::milliseconds periodicity,
                 char const* log_file = { config::stage_log_file }
             ); 
+
             ~AutonomousStage() {
                 m_logger->info("Destructing Stage");
                 for(auto& ca : m_control_algorithms) {

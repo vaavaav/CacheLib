@@ -2119,6 +2119,9 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::Cache {
                                         ObjectCache,
                                         ObjectHandleInvalid);
   public:
+    void resize(holpaca::Id src, holpaca::Id dst, size_t delta) override final {
+      this->resizePools(static_cast<PoolId>(src), static_cast<PoolId>(dst), delta);
+    }
     void resize(holpaca::Id cache_id, size_t new_size) override final {
       auto pool_id = static_cast<PoolId>(cache_id);
       auto pool_size = getPoolStats(pool_id).poolSize;
@@ -2135,7 +2138,8 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::Cache {
         result.insert(std::pair<holpaca::Id,holpaca::Status>(
           static_cast<holpaca::Id>(id), 
           holpaca::Status {
-            pool_stats.poolSize,
+            pool_stats.poolUsableSize + pool_stats.poolAdvisedSize,
+            pool_stats.freeMemoryBytes(),
             0,
             static_cast<uint32_t>(pool_stats.numPoolGetHits)
           }

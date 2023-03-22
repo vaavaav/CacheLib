@@ -34,6 +34,9 @@ namespace holpaca::control_algorithm {
             NaiveControlAlgorithm(Cache* cache, std::chrono::milliseconds periodicity) :
                 cache(cache), ControlAlgorithm (periodicity)
             {}
-            ~NaiveControlAlgorithm() { cache=NULL; }
+            ~NaiveControlAlgorithm() {
+                m_logger->info("Destructing NaiveControlAlgorithm");
+                stop();
+            }
     };
 }
