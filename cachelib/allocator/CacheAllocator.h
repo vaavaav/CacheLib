@@ -2178,7 +2178,7 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::Cache {
         result.insert(std::pair<holpaca::Id,holpaca::Status>(
           static_cast<holpaca::Id>(id), 
           holpaca::Status {
-            pool_stats.poolUsableSize + pool_stats.poolAdvisedSize,
+            pool_stats.poolSize,
             pool_stats.freeMemoryBytes(),
             0,
             static_cast<uint32_t>(pool_stats.numPoolGetHits)

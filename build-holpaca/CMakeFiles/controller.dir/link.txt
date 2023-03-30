@@ -1,1 +1,0 @@
-/usr/bin/c++  -g  -rdynamic CMakeFiles/controller.dir/src/control_plane/stage_proxy.cpp.o CMakeFiles/controller.dir/src/control_plane/controller.cpp.o  -o bin/controller  -Wl,-rpath,/usr/local/lib lib/libspdlogd.a /usr/local/lib/libzmq.so.5.2.5 -lrt -lpthread 

@@ -17,6 +17,7 @@
 #include "cachelib/allocator/PoolRebalancer.h"
 
 #include <folly/logging/xlog.h>
+#include <fstream>
 
 #include <stdexcept>
 #include <thread>
@@ -33,9 +34,10 @@ PoolRebalancer::PoolRebalancer(CacheBase& cache,
   if (!defaultStrategy_) {
     throw std::invalid_argument("The default rebalance strategy is not set.");
   }
+  myfile.open("/tmp/rebalancer.log");
 }
 
-PoolRebalancer::~PoolRebalancer() { stop(std::chrono::seconds(0)); }
+PoolRebalancer::~PoolRebalancer() { myfile.close();stop(std::chrono::seconds(0)); }
 
 void PoolRebalancer::work() {
   try {
@@ -60,6 +62,8 @@ void PoolRebalancer::releaseSlab(PoolId pid,
                      SlabReleaseMode::kRebalance);
   const auto elapsed_time =
       static_cast<uint64_t>(util::getCurrentTimeMs() - now);
+  
+  myfile << std::to_string(pid) << "," << std::to_string(victimClassId) << "," << std::to_string(elapsed_time) << std::endl;
   const PoolStats poolStats = cache_.getPoolStats(pid);
   unsigned int numSlabsInReceiver = 0;
   uint32_t receiverAllocSize = 0;

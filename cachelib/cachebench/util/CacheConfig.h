@@ -71,9 +71,13 @@ struct CacheConfig : public JSONConfig {
 
   uint64_t cacheSizeMB{0};
   uint64_t poolRebalanceIntervalSec{0};
+  uint64_t poolResizeIntervalSec{0};
+  uint64_t resizeMinSlabs{1};
+  std::string resizeStrategy;
   std::string rebalanceStrategy;
   uint64_t rebalanceMinSlabs{1};
   double rebalanceDiffRatio{0.25};
+  double resizeDiffRatio{0.25};
   bool moveOnSlabRelease{false};
 
   uint64_t htBucketPower{22}; // buckets in hash table
@@ -284,6 +288,7 @@ struct CacheConfig : public JSONConfig {
   CacheConfig() {}
 
   std::shared_ptr<RebalanceStrategy> getRebalanceStrategy() const;
+  std::shared_ptr<RebalanceStrategy> getResizeStrategy() const;
 };
 } // namespace cachebench
 } // namespace cachelib

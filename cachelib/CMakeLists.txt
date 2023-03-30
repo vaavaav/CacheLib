@@ -105,8 +105,7 @@ find_package(wangle CONFIG REQUIRED)
 find_package(Zlib REQUIRED)
 find_package(Zstd REQUIRED)
 find_package(FBThrift REQUIRED) # must come after wangle
-#find_package(holpaca CONFIG REQUIRED)
-add_subdirectory(external/holpaca)
+find_package(holpaca CONFIG REQUIRED)
 
 # FBThrift - generates h/cpp files from .*thrift files
 find_program(FBTHRIFT1 thrift1

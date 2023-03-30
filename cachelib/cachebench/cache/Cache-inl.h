@@ -45,6 +45,12 @@ Cache<Allocator>::Cache(const CacheConfig& config,
   allocatorConfig_.enablePoolRebalancing(
       config_.getRebalanceStrategy(),
       std::chrono::seconds(config_.poolRebalanceIntervalSec));
+
+  allocatorConfig_.enablePoolResizing(
+    config_.getResizeStrategy(),
+    std::chrono::seconds(config_.poolResizeIntervalSec),
+    config_.resizeMinSlabs
+  );
   
   if (!gflags::GetCommandLineFlagInfoOrDie("holpaca_periodicity").is_default) {
     allocatorConfig_.enableHolpaca(std::chrono::milliseconds(FLAGS_holpaca_periodicity));

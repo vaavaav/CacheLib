@@ -28,10 +28,14 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
   JSONSetVal(configJson, cacheDir);
   JSONSetVal(configJson, cacheSizeMB);
   JSONSetVal(configJson, poolRebalanceIntervalSec);
+  JSONSetVal(configJson, poolResizeIntervalSec);
   JSONSetVal(configJson, moveOnSlabRelease);
   JSONSetVal(configJson, rebalanceStrategy);
   JSONSetVal(configJson, rebalanceMinSlabs);
+  JSONSetVal(configJson, resizeStrategy);
+  JSONSetVal(configJson, resizeMinSlabs);
   JSONSetVal(configJson, rebalanceDiffRatio);
+  JSONSetVal(configJson, resizeDiffRatio);
 
   JSONSetVal(configJson, htBucketPower);
   JSONSetVal(configJson, htLockPower);
@@ -104,13 +108,33 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
   // if you added new fields to the configuration, update the JSONSetVal
   // to make them available for the json configs and increment the size
   // below
-  checkCorrectSize<CacheConfig, 728>();
+  checkCorrectSize<CacheConfig, 784>();
 
   if (numPools != poolSizes.size()) {
     throw std::invalid_argument(folly::sformat(
         "number of pools must be the same as the pool size distribution. "
         "numPools: {}, poolSizes.size(): {}",
         numPools, poolSizes.size()));
+  }
+}
+
+std::shared_ptr<RebalanceStrategy> CacheConfig::getResizeStrategy() const {
+  if(poolResizeIntervalSec == 0) {
+    return nullptr;
+  }
+
+  if (resizeStrategy == "tail-age") {
+    auto config = LruTailAgeStrategy::Config{
+        resizeDiffRatio, static_cast<unsigned int>(resizeMinSlabs)};
+    return std::make_shared<LruTailAgeStrategy>(config);
+  } else if (resizeStrategy == "hits") {
+    auto config = HitsPerSlabStrategy::Config{
+        resizeDiffRatio, static_cast<unsigned int>(resizeMinSlabs)};
+    return std::make_shared<HitsPerSlabStrategy>(config);
+  } else {
+    // use random strategy to just trigger some slab release.
+    return std::make_shared<RandomStrategy>(
+        RandomStrategy::Config{static_cast<unsigned int>(resizeMinSlabs)});
   }
 }
 

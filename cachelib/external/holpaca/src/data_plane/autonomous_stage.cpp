@@ -11,7 +11,7 @@ namespace holpaca{
             char const* log_file
         ) : Stage(cache) {
             try {
-                m_logger = spdlog::basic_logger_mt("stage", config::stage_log_file);
+                m_logger = spdlog::basic_logger_mt("stage", config::stage_log_file, true);
             } catch (const spdlog::spdlog_ex &ex) {
                 std::cerr << "Log init failed: " << ex.what() << std::endl;
                 abort();

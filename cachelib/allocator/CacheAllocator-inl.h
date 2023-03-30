@@ -104,6 +104,7 @@ CacheAllocator<CacheTrait>::~CacheAllocator() {
   // Stop all workers. In case user didn't call shutDown, we want to
   // terminate all background workers and nvmCache before member variables
   // go out of scope.
+
   stopWorkers();
   nvmCache_.reset();
 }

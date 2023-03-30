@@ -26,7 +26,7 @@ namespace holpaca::control_algorithm {
         public:
             ControlAlgorithm(std::chrono::milliseconds const periodicity) { 
                 try {
-                    m_logger = spdlog::basic_logger_mt("ca", "/tmp/ca.log");
+                    m_logger = spdlog::basic_logger_mt("ca", "/tmp/ca.log", true);
                 } catch (const spdlog::spdlog_ex& ex) {
                     std::cerr << "Log init failed: " << ex.what() << std::endl;
                     abort();

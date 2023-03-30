@@ -6,7 +6,7 @@
 using namespace std::chrono_literals;
 
 namespace holpaca::control_plane::config {
-    char constexpr controller_registry_socket_address[]{"tcp://127.0.0.1:5559"};
+    char constexpr controller_registry_socket_address[]{"127.0.0.1:5559"};
     char constexpr controller_log_file[] { "/tmp/controller.log" };
     auto constexpr control_algorithm_periodicity { 1s };
 }

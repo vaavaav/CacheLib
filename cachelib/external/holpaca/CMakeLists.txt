@@ -18,6 +18,7 @@ set(CMAKE_MODULE_PATH
 # When installing in a non-default prefix, this will let
 # projects linking against lib<name>.so to find lib<name>.so automatically.
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+list(APPEND CMAKE_PREFIX_PATH "/usr/lib") # Probably to remove in the future 
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -35,7 +36,6 @@ find_package(cppzmq CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
 include(FetchContent)
-include(GNUInstallDirs)
 # ---------------------------------------------------------------------------- #
 # > spdlog --- logging library 
 find_package(spdlog 1.9.2 CONFIG QUIET)
@@ -43,16 +43,94 @@ if (NOT spdlog_FOUND)
   message(STATUS "spdlog NOT FOUND, fetching from sources")
   FetchContent_Declare(spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.9.2
+    GIT_TAG v1.9.2 
   )
   FetchContent_MakeAvailable(spdlog)
-  set_target_properties(spdlog PROPERTIES POSITION_INDEPENDENT_CODE ON)
   install(TARGETS spdlog
-    EXPORT ${PROJECT_NAME}-exports
-    DESTINATION ${CMAKE_INSTALL_DIR}
+    EXPORT ${PROJECT_NAME}Targets
+    DESTINATION ${LIB_INSTALL_DIR}
   )
 endif()
 # ---------------------------------------------------------------------------- #
+# > grpc 
+find_package(gRPC 1.53.0 CONFIG QUIET)
+if (NOT gRPC_FOUND)
+  message(STATUS "grpc NOT FOUND, fetching from sources")
+  FetchContent_Declare(gRPC
+    GIT_REPOSITORY https://github.com/grpc/grpc
+    GIT_TAG v1.53.0
+  )
+  set(FETCHCONTENT_QUIET OFF)
+  FetchContent_MakeAvailable(gRPC)
+  #install(TARGETS gRPC
+  #  EXPORT ${PROJECT_NAME}Targets
+  #  DESTINATION ${LIB_INSTALL_DIR}
+  #)
+endif()
+# ---------------------------------------------------------------------------- #
+# > protobuf
+find_package(Protobuf CONFIG REQUIRED)
+if (NOT Protobuf_FOUND)
+  message(STATUS "Protobuf NOT FOUND, fetching from sources")
+  FetchContent_Declare(Protobuf
+    GIT_REPOSITORY https://github.com/protocolbuffers/protobuf
+    GIT_TAG v3.12.2
+  )
+  FetchContent_MakeAvailable(Protobuf)
+endif()
+
+add_compile_definitions(INCLUDE_GRPC)
+set(protobuf_MODULE_COMPATIBLE TRUE)
+message(STATUS "Using protobuf ${Protobuf_VERSION}")
+
+set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
+set(_REFLECTION gRPC::grpc++_reflection)
+if(CMAKE_CROSSCOMPILING)
+    find_program(_PROTOBUF_PROTOC protoc)
+else()
+    set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
+endif()
+
+set(_GRPC_GRPCPP gRPC::grpc++)
+if(CMAKE_CROSSCOMPILING)
+    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+else()
+    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
+endif()
+
+# Proto file
+get_filename_component(holpaca_proto "protos/holpaca.proto" ABSOLUTE)
+get_filename_component(holpaca_proto_path "${holpaca_proto}" PATH)
+
+# Generated sources
+set(holpaca_proto_srcs "${holpaca_proto_path}/holpaca.pb.cc")
+set(holpaca_proto_hdrs "${holpaca_proto_path}/holpaca.pb.h")
+set(holpaca_grpc_srcs  "${holpaca_proto_path}/holpaca.grpc.pb.cc")
+set(holpaca_grpc_hdrs  "${holpaca_proto_path}/holpaca.grpc.pb.h")
+add_custom_command(
+      OUTPUT "${holpaca_proto_srcs}" "${holpaca_proto_hdrs}" "${holpaca_grpc_srcs}" "${holpaca_grpc_hdrs}"
+      COMMAND ${_PROTOBUF_PROTOC}
+      ARGS --grpc_out "${holpaca_proto_path}"
+        --cpp_out "${holpaca_proto_path}"
+        -I "${holpaca_proto_path}"
+        --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+        "${holpaca_proto}"
+      DEPENDS "${holpaca_proto}")
+
+add_library(holpaca_grpc_proto
+  ${holpaca_grpc_srcs}
+  ${holpaca_grpc_hdrs}
+  ${holpaca_proto_srcs}
+  ${holpaca_proto_hdrs}
+)
+
+target_link_libraries(holpaca_grpc_proto
+  ${_REFLECTION}
+  ${_GRPC_GRPCPP}
+  ${_PROTOBUF_LIBPROTOBUF}
+)
+# ---------------------------------------------------------------------------- #
+# > Build Holpaca 
 
 set("${PROJECT_NAME}_HEADER_DIRS"
   include/holpaca
@@ -75,45 +153,69 @@ add_library(${PROJECT_NAME}
 	"${${PROJECT_NAME}_SOURCES}"
 )
 
-target_include_directories(
-  ${PROJECT_NAME}
-  PUBLIC
-		"$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
-    "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
-)
-
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
   Threads::Threads
   spdlog::spdlog
+  gRPC::grpc++
+  holpaca_grpc_proto
   PRIVATE
-  cppzmq
+  ${_REFLECTION}
+  ${_GRPC_GRPCPP}
+  ${_PROTOBUF_LIBPROTOBUF}
 )
 
-install(
-  TARGETS ${PROJECT_NAME}
-  EXPORT ${PROJECT_NAME}-exports
-  DESTINATION ${LIB_INSTALL_DIR}
-)
-
+include(GNUInstallDirs)
 install (DIRECTORY "include/${PROJECT_NAME}" DESTINATION ${INCLUDE_INSTALL_DIR})
 
-# Install CMake package configuration files for alpaca
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-	cmake/${PROJECT_NAME}-config.cmake.in
-	${PROJECT_NAME}-config.cmake
+  cmake/${PROJECT_NAME}-config.cmake.in
+  ${PROJECT_NAME}-config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
   PATH_VARS
     INCLUDE_INSTALL_DIR
     CMAKE_INSTALL_DIR
 )
-install(
-  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
-  DESTINATION ${CMAKE_INSTALL_DIR}
+
+target_include_directories(${PROJECT_NAME}
+  PUBLIC
+  "$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
 )
-install(EXPORT ${PROJECT_NAME}-exports
-  FILE ${PROJECT_NAME}-targets.cmake
-  NAMESPACE ${PROJECT_NAME}::
-  DESTINATION ${CMAKE_INSTALL_DIR}
+install(TARGETS ${PROJECT_NAME}
+  EXPORT ${PROJECT_NAME}Targets
+  RUNTIME DESTINATION ${BIN_INSTALL_DIR}
+  LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+  ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+  INCLUDES DESTINATION ${INCLUDE_INSTALL_DIR}
+)
+
+# ---------------------------------------------------------------------------- #
+# > Build Controller
+
+add_executable(
+  controller
+  include/holpaca
+  src/control_plane/controller.cpp
+  src/control_plane/stage_proxy.cpp
+)
+
+target_include_directories(
+  controller
+  PUBLIC
+  include
+)
+
+target_link_libraries(
+  controller
+  PUBLIC
+  Threads::Threads
+  spdlog::spdlog
+  gRPC::grpc++
+  holpaca_grpc_proto
+  PRIVATE
+  ${_REFLECTION}
+  ${_GRPC_GRPCPP}
+  ${_PROTOBUF_LIBPROTOBUF}
 )

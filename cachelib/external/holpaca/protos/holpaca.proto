@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package Holpaca;
+
+service Controller {
+    rpc Join(Empty) returns (JoinReply) {}
+    rpc Leave(Empty) returns (LeaveReply) {}
+}
+
+message Empty {}
+
+message JoinReply {
+    bool success = 1;
+}
+
+message LeaveReply {
+    bool success = 1;
+}
+
+service Stage {
+    rpc GetStatus(StatusQuery) returns (Status) {}
+    rpc Resize(ResizeQuery) returns (Empty) {}
+}
+
+message StatusQuery {
+    repeated string ids = 1;
+}
+
+message ResizeQuery {
+    string src = 1;
+    string dst = 2;
+    uint64 delta = 3;
+}
+
+message SubStatus {
+    uint64 usedMem = 1;
+    uint64 freeMem = 2;
+    uint32 hits = 3;
+    uint32 lookups = 4;
+}
+
+message Status {
+    map<string, SubStatus> subs = 1;
+}
