@@ -20,7 +20,7 @@ namespace holpaca{
             m_logger->set_level(spdlog::level::trace);
             m_control_algorithms.push_back(
                 std::make_shared<NaiveControlAlgorithm>(
-                    m_cache,
+                    cache,
                     periodicity
                 )
             );

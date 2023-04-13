@@ -4,14 +4,15 @@ set_and_check(HOLPACA_INCLUDE_DIR "@PACKAGE_INCLUDE_INSTALL_DIR@")
 set_and_check(HOLPACA_CMAKE_DIR "@PACKAGE_CMAKE_INSTALL_DIR@")
 
 if (NOT TARGET holpaca::holpaca)
-  include("${HOLPACA_CMAKE_DIR}/holpacaTargets.cmake")
+   include("${HOLPACA_CMAKE_DIR}/holpacaTargets.cmake")
 endif()
 
 set(HOLPACA_LIBRARIES holpaca::holpaca)
 
 include(CMakeFindDependencyMacro)
 find_dependency(spdlog CONFIG REQUIRED)
-find_dependency(gRPC 1.53.0 CONFIG REQUIRED)
+find_dependency(Protobuf REQUIRED)
+find_dependency(gRPC REQUIRED)
 
 if (NOT holpaca_FIND_QUIETLY)
   message(STATUS "Found holpaca: ${PACKAGE_PREFIX_DIR}")

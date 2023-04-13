@@ -241,7 +241,7 @@ void CacheAllocator<CacheTrait>::initWorkers() {
                           config_.ccacheOptimizeStepSizePercent);
   }
   if (config_.enable_holpaca) {
-    startNewHolpacaStage<holpaca::data_plane::AutonomousStage>(config_.holpaca_periodicity);
+    startNewHolpacaStage<holpaca::data_plane::StageServer>(config_.holpaca_periodicity);
   }
 }
 

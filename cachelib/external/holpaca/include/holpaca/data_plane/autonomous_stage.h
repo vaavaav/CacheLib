@@ -5,6 +5,7 @@
 #include <memory>
 
 using namespace holpaca::control_algorithm;
+using namespace holpaca::common;
 
 namespace holpaca::data_plane {
     class AutonomousStage : public Stage {
@@ -28,7 +29,7 @@ namespace holpaca::data_plane {
             template<typename T>
             void addControlAlgorithm(std::chrono::milliseconds const periodicity) {
                 m_control_algorithms.push_back(
-                    std::make_shared<T>(m_cache, periodicity)
+                    std::make_shared<T>(cache, periodicity)
                 );
                 //m_logger->info("Added control algorithm <{}>", typeid(T).name());
             };

@@ -9,12 +9,11 @@ namespace holpaca {
                 m_logger->warn("error while accessing cache object");
                 return;
             }
-            auto const& status = cache->getStatus();
-            for (auto const& [id, status] : status) {
-                m_logger->debug("id={} hits={} size={} free={}", id, status.hits, status.size, status.free);
+            for (auto const& [id, status] : cache->getStatus()) {
+                m_logger->debug("id={} hits={} size={} free={}", id, status.hits, status.usedMem, status.freeMem);
                 Stats new_stats = {
                     .hits = status.hits,
-                    .size = status.size
+                    .size = status.usedMem
                 };
                 auto [it, success] = stats.insert(std::pair<Id, Stats>(id, new_stats));
                 if(!success) {

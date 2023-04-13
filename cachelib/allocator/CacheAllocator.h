@@ -80,9 +80,10 @@
 #include "cachelib/common/Utils.h"
 #include "cachelib/shm/ShmManager.h"
 
-#include <holpaca/data_plane/cache.h>
 #include <holpaca/data_plane/autonomous_stage.h>
-#include <holpaca/data_plane/stage.h>
+#include <holpaca/data_plane/stage_server.h>
+#include <holpaca/data_plane/cache_server.h>
+
 
 namespace facebook {
 namespace cachelib {
@@ -177,7 +178,7 @@ class GET_CLASS_NAME(ObjectCache, ObjectHandleInvalid);
 // find/insert/remove interface similar to a hash table.
 //
 template <typename CacheTrait>
-class CacheAllocator : public CacheBase, public holpaca::data_plane::Cache {
+class CacheAllocator : public CacheBase, public holpaca::data_plane::CacheServer {
  public:
   using CacheT = CacheAllocator<CacheTrait>;
   using MMType = typename CacheTrait::MMType;
@@ -2162,26 +2163,18 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::Cache {
     void resize(holpaca::Id src, holpaca::Id dst, size_t delta) override final {
       this->resizePools(static_cast<PoolId>(src), static_cast<PoolId>(dst), delta);
     }
-    void resize(holpaca::Id cache_id, size_t new_size) override final {
-      auto pool_id = static_cast<PoolId>(cache_id);
-      auto pool_size = getPoolStats(pool_id).poolSize;
-      if(pool_size < new_size) {
-        growPool(pool_id, new_size - pool_size);
-      } else {
-        shrinkPool(pool_id, pool_size - new_size);
-      }
-    }
-    std::map<holpaca::Id, holpaca::Status> getStatus() override final {
-      std::map<holpaca::Id, holpaca::Status> result = {};
+
+    holpaca::common::Status getStatus() override final {
+      holpaca::common::Status result = {};
       for (auto const& id : getPoolIds()) {
         auto pool_stats = getPoolStats(id);
-        result.insert(std::pair<holpaca::Id,holpaca::Status>(
+        result.insert(std::pair<holpaca::Id,holpaca::common::SubStatus>(
           static_cast<holpaca::Id>(id), 
-          holpaca::Status {
+          holpaca::common::SubStatus {
             pool_stats.poolSize,
             pool_stats.freeMemoryBytes(),
-            0,
-            static_cast<uint32_t>(pool_stats.numPoolGetHits)
+            static_cast<uint32_t>(pool_stats.numPoolGetHits),
+            0
           }
         ));
       }

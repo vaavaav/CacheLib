@@ -1,14 +1,14 @@
 #pragma once
 #include <holpaca/control_algorithm/control_algorithm.h>
-#include <holpaca/data_plane/cache.h>
-#include <holpaca/utils/types.h>
+#include <holpaca/common/cache.h>
+#include <holpaca/config.h>
 #include <cstddef>
 #include <memory>
 #include <unordered_map>
 #include <iostream>
 #include <optional>
 
-using namespace holpaca::data_plane;
+using holpaca::common::Cache;
 
 namespace holpaca::control_algorithm {
     class NaiveControlAlgorithm : public ControlAlgorithm {

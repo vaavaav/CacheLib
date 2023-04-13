@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.13)
 
 if (NOT DEFINED PACKAGE_VERSION)
   set(PACKAGE_VERSION "1.0.0")
@@ -18,7 +18,6 @@ set(CMAKE_MODULE_PATH
 # When installing in a non-default prefix, this will let
 # projects linking against lib<name>.so to find lib<name>.so automatically.
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-list(APPEND CMAKE_PREFIX_PATH "/usr/lib") # Probably to remove in the future 
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -32,66 +31,39 @@ set(BIN_INSTALL_DIR bin CACHE STRING
 set(CMAKE_INSTALL_DIR lib/cmake/${PROJECT_NAME} CACHE STRING
     "The subdirectory where CMake package config files should be installed")
 
-find_package(cppzmq CONFIG REQUIRED)
+include(GNUInstallDirs)
+
 find_package(Threads REQUIRED)
-
+find_package(Protobuf REQUIRED)
+message(STATUS "Protobuf version: ${Protobuf_VERSION}")
+find_package(gRPC REQUIRED)
 include(FetchContent)
-# ---------------------------------------------------------------------------- #
-# > spdlog --- logging library 
-find_package(spdlog 1.9.2 CONFIG QUIET)
-if (NOT spdlog_FOUND)
-  message(STATUS "spdlog NOT FOUND, fetching from sources")
-  FetchContent_Declare(spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.9.2 
-  )
-  FetchContent_MakeAvailable(spdlog)
-  install(TARGETS spdlog
-    EXPORT ${PROJECT_NAME}Targets
-    DESTINATION ${LIB_INSTALL_DIR}
-  )
-endif()
-# ---------------------------------------------------------------------------- #
-# > grpc 
-find_package(gRPC 1.53.0 CONFIG QUIET)
-if (NOT gRPC_FOUND)
-  message(STATUS "grpc NOT FOUND, fetching from sources")
-  FetchContent_Declare(gRPC
-    GIT_REPOSITORY https://github.com/grpc/grpc
-    GIT_TAG v1.53.0
-  )
-  set(FETCHCONTENT_QUIET OFF)
-  FetchContent_MakeAvailable(gRPC)
-  #install(TARGETS gRPC
-  #  EXPORT ${PROJECT_NAME}Targets
-  #  DESTINATION ${LIB_INSTALL_DIR}
-  #)
-endif()
-# ---------------------------------------------------------------------------- #
-# > protobuf
-find_package(Protobuf CONFIG REQUIRED)
-if (NOT Protobuf_FOUND)
-  message(STATUS "Protobuf NOT FOUND, fetching from sources")
-  FetchContent_Declare(Protobuf
-    GIT_REPOSITORY https://github.com/protocolbuffers/protobuf
-    GIT_TAG v3.12.2
-  )
-  FetchContent_MakeAvailable(Protobuf)
-endif()
 
-add_compile_definitions(INCLUDE_GRPC)
-set(protobuf_MODULE_COMPATIBLE TRUE)
-message(STATUS "Using protobuf ${Protobuf_VERSION}")
+# ---------------------------------------------------------------------------- #
+# > spdlog --- logging library
+message(STATUS "spdlog NOT FOUND, fetching from sources")
+set(SPDLOG_INSTALL ON)
+FetchContent_Declare(spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG v1.9.2
+)
+FetchContent_MakeAvailable(spdlog)
+# ---------------------------------------------------------------------------- #
 
 set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
 set(_REFLECTION gRPC::grpc++_reflection)
+set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
+set(_GRPC_GRPCPP gRPC::grpc++)
+
+message(STATUS "Using gRPC ${gRPC_VERSION}")
+
 if(CMAKE_CROSSCOMPILING)
     find_program(_PROTOBUF_PROTOC protoc)
 else()
-    set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
+    set(_PROTOBUF_PROTOC protobuf::protoc)
 endif()
 
-set(_GRPC_GRPCPP gRPC::grpc++)
+set(_GRPC_GRPCPP grpc++)
 if(CMAKE_CROSSCOMPILING)
     find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
 else()
@@ -99,7 +71,7 @@ else()
 endif()
 
 # Proto file
-get_filename_component(holpaca_proto "protos/holpaca.proto" ABSOLUTE)
+get_filename_component(holpaca_proto "include/holpaca/protos/holpaca.proto" ABSOLUTE)
 get_filename_component(holpaca_proto_path "${holpaca_proto}" PATH)
 
 # Generated sources
@@ -117,105 +89,117 @@ add_custom_command(
         "${holpaca_proto}"
       DEPENDS "${holpaca_proto}")
 
-add_library(holpaca_grpc_proto
-  ${holpaca_grpc_srcs}
+add_library(holpaca_proto
+  ${holpaca_proto_hdrs}
   ${holpaca_grpc_hdrs}
   ${holpaca_proto_srcs}
-  ${holpaca_proto_hdrs}
+  ${holpaca_grpc_srcs}
 )
 
-target_link_libraries(holpaca_grpc_proto
+target_link_libraries( holpaca_proto
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
-)
-# ---------------------------------------------------------------------------- #
-# > Build Holpaca 
-
-set("${PROJECT_NAME}_HEADER_DIRS"
-  include/holpaca
-)
-
-foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
-  file(GLOB_RECURSE headers ${dir}/*.h)
-	set("${${PROJECT_NAME}}_HEADERS"
-		"${${PROJECT_NAME}_HEADERS}"
-    ${headers})
-endforeach()
-
-set("${PROJECT_NAME}_SOURCES"
-  src/data_plane/autonomous_stage.cpp
-  src/control_algorithm/naive_control_algorithm.cpp
-)
-
-add_library(${PROJECT_NAME}
-  "${${PROJECT_NAME}_HEADERS}"
-	"${${PROJECT_NAME}_SOURCES}"
-)
-
-target_link_libraries(${PROJECT_NAME}
-  PUBLIC
-  Threads::Threads
-  spdlog::spdlog
-  gRPC::grpc++
-  holpaca_grpc_proto
-  PRIVATE
-  ${_REFLECTION}
-  ${_GRPC_GRPCPP}
-  ${_PROTOBUF_LIBPROTOBUF}
-)
-
-include(GNUInstallDirs)
-install (DIRECTORY "include/${PROJECT_NAME}" DESTINATION ${INCLUDE_INSTALL_DIR})
-
-include(CMakePackageConfigHelpers)
-configure_package_config_file(
-  cmake/${PROJECT_NAME}-config.cmake.in
-  ${PROJECT_NAME}-config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
-  PATH_VARS
-    INCLUDE_INSTALL_DIR
-    CMAKE_INSTALL_DIR
-)
-
-target_include_directories(${PROJECT_NAME}
-  PUBLIC
-  "$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
-)
-install(TARGETS ${PROJECT_NAME}
-  EXPORT ${PROJECT_NAME}Targets
-  RUNTIME DESTINATION ${BIN_INSTALL_DIR}
-  LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-  ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-  INCLUDES DESTINATION ${INCLUDE_INSTALL_DIR}
 )
 
 # ---------------------------------------------------------------------------- #
 # > Build Controller
 
-add_executable(
-  controller
-  include/holpaca
-  src/control_plane/controller.cpp
-  src/control_plane/stage_proxy.cpp
+add_executable(controller
+  include/holpaca/control_plane
+  include/holpaca/common/status.h
+  include/holpaca/common/cache.h
+  include/holpaca/config.h
+  #src/control_plane/controller.cpp
+  src/control_plane/cache_proxy.cpp
+  src/control_plane/main.cpp
 )
 
-target_include_directories(
-  controller
+target_include_directories(controller
   PUBLIC
   include
 )
 
-target_link_libraries(
-  controller
+target_link_libraries(controller
   PUBLIC
+  holpaca_proto
   Threads::Threads
   spdlog::spdlog
-  gRPC::grpc++
-  holpaca_grpc_proto
-  PRIVATE
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
 )
+
+# ---------------------------------------------------------------------------- #
+# > Build Holpaca 
+
+#set("${PROJECT_NAME}_HEADER_DIRS"
+#  include/holpaca/data_plane
+#  include/holpaca/control_algorithm
+#)
+#
+#foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
+#  file(GLOB_RECURSE headers ${dir}/*.h)
+#	set("${${PROJECT_NAME}}_HEADERS"
+#		"${${PROJECT_NAME}_HEADERS}"
+#    ${headers})
+#endforeach()
+#
+#set("${PROJECT_NAME}_SOURCES"
+#  src/data_plane/autonomous_stage.cpp
+#  src/control_algorithm/naive_control_algorithm.cpp
+#  #src/data_plane/stage_server.cpp
+#)
+#
+#add_library(${PROJECT_NAME}
+#  "${${PROJECT_NAME}_HEADERS}"
+#	"${${PROJECT_NAME}_SOURCES}"
+#)
+#
+#
+#target_include_directories(${PROJECT_NAME}
+#  PUBLIC
+#  "$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
+#  "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
+#)
+#
+#target_link_libraries(${PROJECT_NAME} 
+#  PUBLIC
+#  holpaca_proto
+#  spdlog
+#  ${_REFLECTION}
+#  ${_GRPC_GRPCPP}
+#  ${_PROTOBUF_LIBPROTOBUF}
+#)
+#
+#install(
+#  TARGETS ${PROJECT_NAME} 
+#  spdlog 
+#  holpaca_proto
+#  EXPORT ${PROJECT_NAME}-exports
+#  DESTINATION ${LIB_INSTALL_DIR}
+#)
+#
+#install (DIRECTORY "include/${PROJECT_NAME}" DESTINATION ${INCLUDE_INSTALL_DIR})
+#
+## Install CMake package configuration files for alpaca
+#include(CMakePackageConfigHelpers)
+#configure_package_config_file(
+#	cmake/${PROJECT_NAME}-config.cmake.in
+#	${PROJECT_NAME}-config.cmake
+#  INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
+#  PATH_VARS
+#    INCLUDE_INSTALL_DIR
+#    CMAKE_INSTALL_DIR
+#)
+#
+#install(
+#  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+#  DESTINATION ${CMAKE_INSTALL_DIR}
+#)
+#install(
+#  EXPORT ${PROJECT_NAME}-exports
+#  FILE ${PROJECT_NAME}Targets.cmake
+#  NAMESPACE ${PROJECT_NAME}::
+#  DESTINATION ${CMAKE_INSTALL_DIR}
+#)

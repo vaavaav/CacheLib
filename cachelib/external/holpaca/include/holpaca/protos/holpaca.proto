@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package holpaca;
+
+service cache {
+    rpc GetStatus(StatusRequest) returns (Status) {}
+    rpc Resize(ResizeRequest) returns (ResizeResponse) {}
+}
+
+message StatusRequest {
+    repeated uint64 ids = 1;
+}
+
+message ResizeRequest {
+    uint64 src = 1;
+    uint64 dst = 2;
+    uint64 delta = 3;
+}
+
+message ResizeResponse {
+    bool success = 1;
+}
+
+message SubStatus {
+    uint64 usedMem = 1;
+    uint64 freeMem = 2;
+    uint32 hits = 3;
+    uint32 lookups = 4;
+}
+
+message Status {
+    map<uint64, SubStatus> subs = 1;
+}

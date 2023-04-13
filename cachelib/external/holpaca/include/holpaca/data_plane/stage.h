@@ -1,20 +1,18 @@
 #pragma once
-#include <memory>
-#include <holpaca/data_plane/cache.h>
+#include <holpaca/common/cache.h>
 
-using namespace holpaca;
+using holpaca::common::Cache;
 
-namespace holpaca {
-    namespace data_plane {
-        class Stage {
-            public:
-                virtual ~Stage() = 0;
-            protected:
-                Stage() = delete;
-                Cache* m_cache;
-                Stage(Cache* cache) : m_cache(cache) {}
-        };
+namespace holpaca::data_plane {
+    class Stage {
+        public:
+            Stage() = delete;
+            virtual ~Stage() = 0;
 
-        inline Stage::~Stage() {};
-    }
+        protected:
+            Cache* const cache;
+            Stage(Cache* const cache) : cache(cache) {}
+    };
+    
+    inline Stage::~Stage() {}
 }
