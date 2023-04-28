@@ -4,11 +4,8 @@
 
 namespace holpaca::control_plane {
 CacheProxy::CacheProxy(char const* address) {
-  std::cout << "1" << std::endl;
   auto s = grpc::CreateChannel(address, grpc::InsecureChannelCredentials());
-  std::cout << "2" << std::endl;
   cache = holpaca::cache::NewStub(s);
-  std::cout << "3" << std::endl;
 }
 
 void CacheProxy::resize(Id srcPool, Id dstPool, size_t delta) {
@@ -29,13 +26,17 @@ holpaca::common::Status CacheProxy::getStatus() {
   request.clear_ids();
   holpaca::Status response;
 
-  cache->GetStatus(&context, request, &response);
+  auto r =  cache->GetStatus(&context, request, &response);
 
   holpaca::common::Status result{};
 
   for (auto const& [id, value] : response.subs()) {
+    std::map<uint64_t, uint32_t> tailAccesses;
+    for (auto const& [cid, cs] : value.tailaccesses()) {
+      tailAccesses[cid] = cs;
+    }
     result[id] = {value.usedmem(), value.freemem(), value.hits(),
-                  value.lookups()};
+                  value.lookups(), value.evictions(), tailAccesses};
   }
 
   return result;

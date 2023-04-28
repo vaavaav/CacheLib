@@ -2168,15 +2168,18 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::CacheServer
       holpaca::common::Status result = {};
       for (auto const& id : getPoolIds()) {
         auto pool_stats = getPoolStats(id);
-        result.insert(std::pair<holpaca::Id,holpaca::common::SubStatus>(
-          static_cast<holpaca::Id>(id), 
-          holpaca::common::SubStatus {
+        std::map<uint64_t, uint32_t> tailHits;
+        for (auto const& [cid, cs]: pool_stats.cacheStats) {
+          tailHits[cid] = cs.containerStat.numTailAccesses;
+        }
+        result[id] = holpaca::common::SubStatus {
             pool_stats.poolSize,
             pool_stats.freeMemoryBytes(),
             static_cast<uint32_t>(pool_stats.numPoolGetHits),
-            0
-          }
-        ));
+            0,
+            pool_stats.numEvictions(),
+            tailHits
+          };
       }
       return result;
     }

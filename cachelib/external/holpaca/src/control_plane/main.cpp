@@ -1,13 +1,12 @@
-#include <holpaca/control_plane/cache_proxy.h>
+#include <holpaca/control_plane/controller.h>
 #include <iostream>
+#include <thread>
 
 int main() {
-    holpaca::control_plane::CacheProxy cp;
+    holpaca::control_plane::Controller c(1000ms);
 
-    auto s = cp.getStatus();
-
-    for( auto const& [id, status] : s) {
-        std::cout << "id=" << id << " hits=" << status.hits << " size=" << status.usedMem << " free=" << status.freeMem << std::endl;
+    while(true){
+        std::this_thread::sleep_for(1s);
     }
 
     return 0;
