@@ -4,6 +4,8 @@
     "allocFactor" : 2.5,
     "poolResizeIntervalSec" : 1,
     "resizeMinSlabs": 5,
+    "allocator": "LRU2Q",
+    "trackTailHits": true,
 
     "numPools" : 10,
     "poolSizes" : [0.1, 0.1, 0.1, 0.1, 0.1,0.1, 0.1, 0.1, 0.1, 0.1]

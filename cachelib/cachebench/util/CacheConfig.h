@@ -20,6 +20,7 @@
 
 #include "cachelib/allocator/CacheAllocator.h"
 #include "cachelib/allocator/RebalanceStrategy.h"
+#include "cachelib/allocator/PoolOptimizeStrategy.h"
 #include "cachelib/cachebench/util/JSONConfig.h"
 #include "cachelib/common/Ticker.h"
 #include "cachelib/navy/common/Device.h"
@@ -72,8 +73,11 @@ struct CacheConfig : public JSONConfig {
   uint64_t cacheSizeMB{0};
   uint64_t poolRebalanceIntervalSec{0};
   uint64_t poolResizeIntervalSec{0};
+  uint64_t poolOptimizeIntervalSec{0};
   uint64_t resizeMinSlabs{1};
+  bool trackTailHits{false};
   std::string resizeStrategy;
+  std::string optimizeStrategy;
   std::string rebalanceStrategy;
   uint64_t rebalanceMinSlabs{1};
   double rebalanceDiffRatio{0.25};
@@ -289,6 +293,7 @@ struct CacheConfig : public JSONConfig {
 
   std::shared_ptr<RebalanceStrategy> getRebalanceStrategy() const;
   std::shared_ptr<RebalanceStrategy> getResizeStrategy() const;
+  std::shared_ptr<PoolOptimizeStrategy> getOptimizeStrategy() const;
 };
 } // namespace cachebench
 } // namespace cachelib

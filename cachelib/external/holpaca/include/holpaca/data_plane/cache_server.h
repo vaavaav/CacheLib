@@ -23,14 +23,33 @@ namespace holpaca::data_plane {
 
                 auto status = this->getStatus();
 
-                for (auto& id : request->ids()) {
-                    holpaca::SubStatus ss;
-                    ss.set_usedmem(status[id].usedMem);
-                    ss.set_freemem(status[id].freeMem);
-                    ss.set_hits(status[id].hits);
-                    ss.set_lookups(status[id].lookups);
-                    (*response->mutable_subs())[id] = ss;
+                if (request->ids().empty()) {
+                    for (auto const& [id, value] : status) {
+                        holpaca::SubStatus ss;
+                        ss.set_usedmem(value.usedMem);
+                        ss.set_freemem(value.freeMem);
+                        ss.set_hits(value.hits);
+                        ss.set_lookups(value.lookups);
+                        ss.set_evictions(value.evictions);
+                        for(auto const& [cid, tailAccesses] : value.tailAccesses) {
+                            (*ss.mutable_tailaccesses())[cid] = tailAccesses;
+                        }
+                        (*response->mutable_subs())[id] = ss;
+                    }
+                } else {
+                    for (auto& id : request->ids()) {
+                        holpaca::SubStatus ss;
+                        ss.set_usedmem(status[id].usedMem);
+                        ss.set_freemem(status[id].freeMem);
+                        ss.set_hits(status[id].hits);
+                        ss.set_lookups(status[id].lookups);
+                        for(auto const& [cid, tailAccesses] : status[id].tailAccesses) {
+                            (*ss.mutable_tailaccesses())[cid] = tailAccesses;
+                        }
+                        (*response->mutable_subs())[id] = ss;
+                    }
                 }
+
 
                 return grpc::Status::OK;
             }

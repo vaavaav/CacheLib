@@ -110,6 +110,8 @@ add_executable(controller
   include/holpaca/common/status.h
   include/holpaca/common/cache.h
   include/holpaca/config.h
+  include/holpaca/control_algorithm
+  src/control_algorithm/naive_control_algorithm.cpp
   #src/control_plane/controller.cpp
   src/control_plane/cache_proxy.cpp
   src/control_plane/main.cpp
@@ -133,73 +135,73 @@ target_link_libraries(controller
 # ---------------------------------------------------------------------------- #
 # > Build Holpaca 
 
-#set("${PROJECT_NAME}_HEADER_DIRS"
-#  include/holpaca/data_plane
-#  include/holpaca/control_algorithm
-#)
-#
-#foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
-#  file(GLOB_RECURSE headers ${dir}/*.h)
-#	set("${${PROJECT_NAME}}_HEADERS"
-#		"${${PROJECT_NAME}_HEADERS}"
-#    ${headers})
-#endforeach()
-#
-#set("${PROJECT_NAME}_SOURCES"
-#  src/data_plane/autonomous_stage.cpp
-#  src/control_algorithm/naive_control_algorithm.cpp
-#  #src/data_plane/stage_server.cpp
-#)
-#
-#add_library(${PROJECT_NAME}
-#  "${${PROJECT_NAME}_HEADERS}"
-#	"${${PROJECT_NAME}_SOURCES}"
-#)
-#
-#
-#target_include_directories(${PROJECT_NAME}
-#  PUBLIC
-#  "$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
-#  "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
-#)
-#
-#target_link_libraries(${PROJECT_NAME} 
-#  PUBLIC
-#  holpaca_proto
-#  spdlog
-#  ${_REFLECTION}
-#  ${_GRPC_GRPCPP}
-#  ${_PROTOBUF_LIBPROTOBUF}
-#)
-#
-#install(
-#  TARGETS ${PROJECT_NAME} 
-#  spdlog 
-#  holpaca_proto
-#  EXPORT ${PROJECT_NAME}-exports
-#  DESTINATION ${LIB_INSTALL_DIR}
-#)
-#
-#install (DIRECTORY "include/${PROJECT_NAME}" DESTINATION ${INCLUDE_INSTALL_DIR})
-#
-## Install CMake package configuration files for alpaca
-#include(CMakePackageConfigHelpers)
-#configure_package_config_file(
-#	cmake/${PROJECT_NAME}-config.cmake.in
-#	${PROJECT_NAME}-config.cmake
-#  INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
-#  PATH_VARS
-#    INCLUDE_INSTALL_DIR
-#    CMAKE_INSTALL_DIR
-#)
-#
-#install(
-#  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
-#  DESTINATION ${CMAKE_INSTALL_DIR}
-#)
-#install(
-#  EXPORT ${PROJECT_NAME}-exports
-#  FILE ${PROJECT_NAME}Targets.cmake
-#  NAMESPACE ${PROJECT_NAME}::
-#  DESTINATION ${CMAKE_INSTALL_DIR}
-#)
+set("${PROJECT_NAME}_HEADER_DIRS"
+  include/holpaca/data_plane
+  include/holpaca/control_algorithm
+)
+
+foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
+  file(GLOB_RECURSE headers ${dir}/*.h)
+	set("${${PROJECT_NAME}}_HEADERS"
+		"${${PROJECT_NAME}_HEADERS}"
+    ${headers})
+endforeach()
+
+set("${PROJECT_NAME}_SOURCES"
+  src/data_plane/autonomous_stage.cpp
+  src/control_algorithm/naive_control_algorithm.cpp
+  #src/data_plane/stage_server.cpp
+)
+
+add_library(${PROJECT_NAME}
+  "${${PROJECT_NAME}_HEADERS}"
+	"${${PROJECT_NAME}_SOURCES}"
+)
+
+
+target_include_directories(${PROJECT_NAME}
+  PUBLIC
+  "$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
+)
+
+target_link_libraries(${PROJECT_NAME} 
+  PUBLIC
+  holpaca_proto
+  spdlog
+  ${_REFLECTION}
+  ${_GRPC_GRPCPP}
+  ${_PROTOBUF_LIBPROTOBUF}
+)
+
+install(
+  TARGETS ${PROJECT_NAME} 
+  spdlog 
+  holpaca_proto
+  EXPORT ${PROJECT_NAME}-exports
+  DESTINATION ${LIB_INSTALL_DIR}
+)
+
+install (DIRECTORY "include/${PROJECT_NAME}" DESTINATION ${INCLUDE_INSTALL_DIR})
+
+# Install CMake package configuration files for alpaca
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+	cmake/${PROJECT_NAME}-config.cmake.in
+	${PROJECT_NAME}-config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
+  PATH_VARS
+    INCLUDE_INSTALL_DIR
+    CMAKE_INSTALL_DIR
+)
+
+install(
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+  DESTINATION ${CMAKE_INSTALL_DIR}
+)
+install(
+  EXPORT ${PROJECT_NAME}-exports
+  FILE ${PROJECT_NAME}Targets.cmake
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_DIR}
+)

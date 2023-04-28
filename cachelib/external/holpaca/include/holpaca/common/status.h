@@ -7,6 +7,8 @@ namespace holpaca::common {
         uint64_t freeMem;
         uint32_t hits;
         uint32_t lookups;
+        uint64_t evictions;
+        std::map<uint64_t, uint32_t> tailAccesses;
     };
     
     using Status = std::map<holpaca::Id, SubStatus> ;

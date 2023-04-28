@@ -10,6 +10,7 @@
 #include <holpaca/protos/holpaca.grpc.pb.h>
 #include <thread>
 #include <map>
+#include <spdlog/spdlog.h>
 
 using grpc::ClientContext;
 using grpc::Channel;
@@ -17,13 +18,13 @@ using grpc::Channel;
 namespace holpaca::control_plane {
     class CacheProxy final : public virtual holpaca::common::Cache {
         std::unique_ptr<holpaca::cache::Stub> cache;
+        std::shared_ptr<spdlog::logger> logger;
 
         public:
-            CacheProxy(char const* address = holpaca::data_plane::config::stage_address); 
+            CacheProxy(char const* address); 
 
             void resize(Id srcPool, Id dstPool, size_t delta) override final;
 
             holpaca::common::Status getStatus() override final;
-            
     };
 }

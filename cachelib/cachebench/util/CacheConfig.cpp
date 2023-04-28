@@ -19,6 +19,7 @@
 #include "cachelib/allocator/HitsPerSlabStrategy.h"
 #include "cachelib/allocator/LruTailAgeStrategy.h"
 #include "cachelib/allocator/RandomStrategy.h"
+#include "cachelib/allocator/MarginalHitsOptimizeStrategy.h"
 
 namespace facebook {
 namespace cachelib {
@@ -29,10 +30,12 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
   JSONSetVal(configJson, cacheSizeMB);
   JSONSetVal(configJson, poolRebalanceIntervalSec);
   JSONSetVal(configJson, poolResizeIntervalSec);
+  JSONSetVal(configJson, poolOptimizeIntervalSec);
   JSONSetVal(configJson, moveOnSlabRelease);
   JSONSetVal(configJson, rebalanceStrategy);
   JSONSetVal(configJson, rebalanceMinSlabs);
   JSONSetVal(configJson, resizeStrategy);
+  JSONSetVal(configJson, optimizeStrategy);
   JSONSetVal(configJson, resizeMinSlabs);
   JSONSetVal(configJson, rebalanceDiffRatio);
   JSONSetVal(configJson, resizeDiffRatio);
@@ -51,6 +54,8 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
 
   JSONSetVal(configJson, lru2qHotPct);
   JSONSetVal(configJson, lru2qColdPct);
+  JSONSetVal(configJson,
+  trackTailHits);
 
   JSONSetVal(configJson, allocFactor);
   JSONSetVal(configJson, maxAllocSize);
@@ -108,7 +113,7 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
   // if you added new fields to the configuration, update the JSONSetVal
   // to make them available for the json configs and increment the size
   // below
-  checkCorrectSize<CacheConfig, 784>();
+  checkCorrectSize<CacheConfig, 832>();
 
   if (numPools != poolSizes.size()) {
     throw std::invalid_argument(folly::sformat(
@@ -116,6 +121,13 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
         "numPools: {}, poolSizes.size(): {}",
         numPools, poolSizes.size()));
   }
+}
+
+std::shared_ptr<PoolOptimizeStrategy> CacheConfig::getOptimizeStrategy() const {
+  if(poolOptimizeIntervalSec == 0) {
+    return nullptr;
+  }
+  return std::make_shared<MarginalHitsOptimizeStrategy>();
 }
 
 std::shared_ptr<RebalanceStrategy> CacheConfig::getResizeStrategy() const {
