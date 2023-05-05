@@ -59,6 +59,10 @@ namespace holpaca::control_algorithm {
                 smoothedRanks[pid] = 0;
                 for(auto const& [cid, cTailHits] : tailHits[pid]) {
                     score[pid] = std::max(score[pid], cTailHits);
+<<<<<<< HEAD
+=======
+                    m_logger->debug("tailAccesses[{}][{}] = {}", pid, cid, cTailHits);
+>>>>>>> 54f321f942f0171c15c07ab1f25e182d5cf41c0d
                 }
             }
             auto cmp = [&](auto x, auto y) { return score[x] < score[y]; };
