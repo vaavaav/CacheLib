@@ -25,4 +25,4 @@ PREFIX="$CLBASE/opt/cachelib/"
 LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
-./build/ycsb $@
+./build/ycsb -run -db cachelib -P workloads/workloadd -threads 10 -p status.interval=1 -s $@
