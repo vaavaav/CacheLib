@@ -19,6 +19,7 @@
 #include "counter_generator.h"
 #include "acknowledged_counter_generator.h"
 #include "utils.h"
+#include <atomic>
 
 namespace ycsbc {
 
@@ -168,6 +169,7 @@ class CoreWorkload {
   ///
   static const std::string ZIPFIAN_CONST_PROPERTY;
 
+
   ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
@@ -196,7 +198,16 @@ class CoreWorkload {
     delete transaction_insert_key_sequence_;
   }
 
+  void request_stop() {
+    stop_requested_.store(true);
+  }
+
+  bool is_stop_requested(){
+    return stop_requested_.load();
+  }
+
  protected:
+
   static Generator<uint64_t> *GetFieldLenGenerator(const utils::Properties &p);
   std::string BuildKeyName(uint64_t key_num);
   void BuildValues(std::vector<DB::Field> &values);
@@ -226,6 +237,9 @@ class CoreWorkload {
   bool ordered_inserts_;
   size_t record_count_;
   int zero_padding_;
+
+  private:
+    std::atomic_bool stop_requested_ = {false};
 };
 
 } // ycsbc

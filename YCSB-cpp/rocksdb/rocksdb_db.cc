@@ -119,48 +119,7 @@ int RocksdbDB::ref_cnt_ = 0;
 std::mutex RocksdbDB::mu_;
 
 void RocksdbDB::Init() {
-// merge operator disabled by default due to link error
-#ifdef USE_MERGEUPDATE
-  class YCSBUpdateMerge : public rocksdb::AssociativeMergeOperator {
-   public:
-    virtual bool Merge(const rocksdb::Slice &key, const rocksdb::Slice *existing_value,
-                       const rocksdb::Slice &value, std::string *new_value,
-                       rocksdb::Logger *logger) const override {
-      assert(existing_value);
 
-      std::vector<Field> values;
-      const char *p = existing_value->data();
-      const char *lim = p + existing_value->size();
-      DeserializeRow(values, p, lim);
-
-      std::vector<Field> new_values;
-      p = value.data();
-      lim = p + value.size();
-      DeserializeRow(new_values, p, lim);
-
-      for (Field &new_field : new_values) {
-        bool found = false;
-        for (Field &field : values) {
-          if (field.name == new_field.name) {
-            found = true;
-            field.value = new_field.value;
-            break;
-          }
-        }
-        if (!found) {
-          values.push_back(new_field);
-        }
-      }
-
-      SerializeRow(values, *new_value);
-      return true;
-    }
-
-    virtual const char *Name() const override {
-      return "YCSBUpdateMerge";
-    }
-  };
-#endif
   const std::lock_guard<std::mutex> lock(mu_);
 
   const utils::Properties &props = *props_;
@@ -172,11 +131,6 @@ void RocksdbDB::Init() {
     method_update_ = &RocksdbDB::UpdateSingle;
     method_insert_ = &RocksdbDB::InsertSingle;
     method_delete_ = &RocksdbDB::DeleteSingle;
-#ifdef USE_MERGEUPDATE
-    if (props.GetProperty(PROP_MERGEUPDATE, PROP_MERGEUPDATE_DEFAULT) == "true") {
-      method_update_ = &RocksdbDB::MergeSingle;
-    }
-#endif
   } else {
     throw utils::Exception("unknown format");
   }
@@ -198,9 +152,6 @@ void RocksdbDB::Init() {
   std::vector<rocksdb::ColumnFamilyDescriptor> cf_descs;
   std::vector<rocksdb::ColumnFamilyHandle *> cf_handles;
   GetOptions(props, &opt, &cf_descs);
-#ifdef USE_MERGEUPDATE
-  opt.merge_operator.reset(new YCSBUpdateMerge);
-#endif
 
   rocksdb::Status s;
   if (props.GetProperty(PROP_DESTROY, PROP_DESTROY_DEFAULT) == "true") {
@@ -232,15 +183,6 @@ void RocksdbDB::GetOptions(const utils::Properties &props, rocksdb::Options *opt
   std::string env_uri = props.GetProperty(PROP_ENV_URI, PROP_ENV_URI_DEFAULT);
   std::string fs_uri = props.GetProperty(PROP_FS_URI, PROP_FS_URI_DEFAULT);
   rocksdb::Env* env =  rocksdb::Env::Default();;
-  if (!env_uri.empty() || !fs_uri.empty()) {
-    rocksdb::Status s = rocksdb::Env::CreateFromUri(rocksdb::ConfigOptions(),
-                                                    env_uri, fs_uri, &env, &env_guard);
-    if (!s.ok()) {
-      throw utils::Exception(std::string("RocksDB CreateFromUri: ") + s.ToString());
-    }
-    opt->env = env;
-  }
-
   const std::string options_file = props.GetProperty(PROP_OPTIONS_FILE, PROP_OPTIONS_FILE_DEFAULT);
   if (options_file != "") {
     rocksdb::ConfigOptions config_options;

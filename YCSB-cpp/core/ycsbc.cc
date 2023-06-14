@@ -24,6 +24,7 @@
 #include "core_workload.h"
 #include "countdown_latch.h"
 #include "db_factory.h"
+#include "terminator_thread.h"
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
@@ -62,6 +63,7 @@ int main(const int argc, const char *argv[]) {
   }
 
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
+  
 
   ycsbc::Measurements *measurements = ycsbc::CreateMeasurements(&props);
   if (measurements == nullptr) {
@@ -112,6 +114,7 @@ int main(const int argc, const char *argv[]) {
     int sum = 0;
     for (auto &n : client_threads) {
       assert(n.valid());
+      n.wait();
       sum += n.get();
     }
     double runtime = timer.End();
@@ -141,7 +144,12 @@ int main(const int argc, const char *argv[]) {
       status_future = std::async(std::launch::async, StatusThread,
                                  measurements, &latch, status_interval);
     }
+    std::future<void> terminator_thread;
     std::vector<std::future<int>> client_threads;
+    const std::chrono::seconds maxexecutiontime { stol(props.GetProperty("maxexecutiontime","0"))};
+    if (maxexecutiontime.count() > 0) {
+      terminator_thread = std::async(std::launch::async, ycsbc::TerminatorThread, maxexecutiontime, &wl, &client_threads);
+    }
     for (int i = 0; i < num_threads; ++i) {
       int thread_ops = total_ops / num_threads;
       if (i < total_ops % num_threads) {
@@ -161,6 +169,9 @@ int main(const int argc, const char *argv[]) {
 
     if (show_status) {
       status_future.wait();
+    }
+    if (maxexecutiontime.count() > 0) {
+      terminator_thread.wait();
     }
 
     std::cout << "Run runtime(sec): " << runtime << std::endl;

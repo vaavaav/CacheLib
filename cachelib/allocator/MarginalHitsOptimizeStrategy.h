@@ -18,6 +18,7 @@
 
 #include "cachelib/allocator/MarginalHitsState.h"
 #include "cachelib/allocator/PoolOptimizeStrategy.h"
+#include <fstream>
 
 namespace facebook {
 namespace cachelib {
@@ -57,7 +58,8 @@ class MarginalHitsOptimizeStrategy : public PoolOptimizeStrategy {
   };
 
   explicit MarginalHitsOptimizeStrategy(Config config = {})
-      : PoolOptimizeStrategy(MarginalHits), config_(std::move(config)) {}
+      : PoolOptimizeStrategy(MarginalHits), config_(std::move(config)) {
+      }
 
   // Update the config. This will not affect the current rebalancing, but
   // will take effect in the next round

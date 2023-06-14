@@ -41,7 +41,7 @@ namespace holpaca::control_algorithm {
                 validReceiver[id] = status.freeMem < poolMaxFreeSlabs;
                 poolIds.push_back(id);
                 for (auto const& [cid, tailAccesses] : status.tailAccesses) {
-                    m_logger->debug("tailAccesses[{}][{}] = {}", id, cid, tailAccesses);
+                   // m_logger->debug("tailAccesses[{}][{}] = {}", id, cid, tailAccesses);
                     accumTailHits[id][cid] = 0;
                     tailHits[id][cid] = tailAccesses - accumTailHits[id][cid];
                     accumTailHits[id].find(cid)->second = tailAccesses;
@@ -59,10 +59,7 @@ namespace holpaca::control_algorithm {
                 smoothedRanks[pid] = 0;
                 for(auto const& [cid, cTailHits] : tailHits[pid]) {
                     score[pid] = std::max(score[pid], cTailHits);
-<<<<<<< HEAD
-=======
-                    m_logger->debug("tailAccesses[{}][{}] = {}", pid, cid, cTailHits);
->>>>>>> 54f321f942f0171c15c07ab1f25e182d5cf41c0d
+                    //m_logger->debug("tailAccesses[{}][{}] = {}", pid, cid, cTailHits);
                 }
             }
             auto cmp = [&](auto x, auto y) { return score[x] < score[y]; };
@@ -70,7 +67,7 @@ namespace holpaca::control_algorithm {
             for(uint32_t i = 0; i < poolIds.size(); i++) {
                 auto avg = &smoothedRanks[poolIds[i]];
                 (*avg) = (*avg) * movingAverageParam + i * (1 - movingAverageParam);
-                m_logger->debug("smoothedRanks[{}] = {}", poolIds[i], smoothedRanks[poolIds[i]]);
+                //m_logger->debug("smoothedRanks[{}] = {}", poolIds[i], smoothedRanks[poolIds[i]]);
             }
             double minRank = smoothedRanks.size();
             double maxRank = -1;

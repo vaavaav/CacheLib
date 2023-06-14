@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <iostream>
 
 #include "cachelib/allocator/Util.h"
 

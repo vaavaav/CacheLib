@@ -25,13 +25,17 @@ inline int ClientThread(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_op
         }
 
         int ops = 0;
-        for (int i = 0; i < num_ops; ++i) {
-            if (is_loading) {
+        if(is_loading){
+            for (; ops < num_ops; ++ops) {
                 wl->DoInsert(*db);
-            } else {
+            }
+        } else {
+            for (; ops < num_ops; ++ops) {
+                if(wl->is_stop_requested()){
+                    break;
+                }
                 wl->DoTransaction(*db);
             }
-            ops++;
         }
 
         if (cleanup_db) {

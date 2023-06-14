@@ -20,18 +20,20 @@ set -e
 CLBASE="$PWD/.."
 
 # Additional "FindXXX.cmake" files are here (e.g. FindSodium.cmake)
-CLCMAKE="$CLBASE/cachelib/cmake"
+CACHELIBCMAKE="$CLBASE/cachelib/cmake"
 
 # After ensuring we are in the correct directory, set the installation prefix"
-PREFIX="$CLBASE/opt/cachelib/"
+CACHELIB="$CLBASE/opt/cachelib"
 
-CMAKE_PARAMS="-DCMAKE_INSTALL_PREFIX='$PREFIX' -DCMAKE_MODULE_PATH='$CLCMAKE' -DCMAKE_BUILD_TYPE=Debug -DBIND_CACHELIB=1"
+CMAKE_PARAMS="-DCMAKE_INSTALL_PREFIX='$CACHELIB' -DCMAKE_MODULE_PATH='$CACHELIBCMAKE' -DCMAKE_BUILD_TYPE=Debug -DBIND_CACHELIB=1
+-DBIND_ROCKSDB=1
+"
 
-CMAKE_PREFIX_PATH="$PREFIX/lib/cmake:$PREFIX/lib64/cmake:$PREFIX/lib:$PREFIX/lib64:$PREFIX:${CMAKE_PREFIX_PATH:-}"
+CMAKE_PREFIX_PATH="$CACHELIB/lib/cmake:$CACHELIB/lib64/cmake:$CACHELIB/lib:$CACHELIB/lib64:$CACHELIB:${CMAKE_PREFIX_PATH:-}"
 export CMAKE_PREFIX_PATH
-PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
+PKG_CONFIG_PATH="$CACHELIB/lib/pkgconfig:$CACHELIB/lib64/pkgconfig:${PKG_CONFIG_PATH:-}"
 export PKG_CONFIG_PATH
-LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
+LD_LIBRARY_PATH="lib64:$CACHELIB/lib:$CACHELIB/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
 mkdir -p build

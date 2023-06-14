@@ -79,5 +79,6 @@
         "format": "cpp",
         "valarray": "cpp"
     },
-    "cmake.sourceDirectory": "${workspaceFolder}/cachelib/datatype"
+    "cmake.sourceDirectory": "${workspaceFolder}/cachelib/datatype",
+    "python.formatting.provider": "black"
 }

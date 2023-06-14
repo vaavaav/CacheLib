@@ -20,9 +20,8 @@ set -e
 CLBASE="$PWD/.."
 
 # After ensuring we are in the correct directory, set the installation prefix"
-PREFIX="$CLBASE/opt/cachelib/"
+CACHELIB="$CLBASE/opt/cachelib/"
 
-LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
-export LD_LIBRARY_PATH
+LD_LIBRARY_PATH="$CACHELIB/lib:$CACHELIB/lib64:${LD_LIBRARY_PATH:-}"
 
-./build/ycsb -run -db cachelib -P workloads/workloadd -threads 10 -p status.interval=1 -s $@
+./build/ycsb -run -db cachelib -P workloads/workloadd -threads 10 -p status.interval=1 -p rocksdb.dbname=/home/gsd/CacheLib/YCSB-cpp/db_backup/ -s $@
