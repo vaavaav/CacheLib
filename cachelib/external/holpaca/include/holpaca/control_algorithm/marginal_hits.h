@@ -42,9 +42,9 @@ namespace holpaca::control_algorithm {
                 poolIds.push_back(id);
                 for (auto const& [cid, tailAccesses] : status.tailAccesses) {
                    // m_logger->debug("tailAccesses[{}][{}] = {}", id, cid, tailAccesses);
-                    accumTailHits[id][cid] = 0;
+                    accumTailHits[id].insert({cid,tailAccesses});
                     tailHits[id][cid] = tailAccesses - accumTailHits[id][cid];
-                    accumTailHits[id].find(cid)->second = tailAccesses;
+                    //accumTailHits[id].find(cid)->second = tailAccesses;
                 }
             }
         }
@@ -56,7 +56,7 @@ namespace holpaca::control_algorithm {
             }
             score.clear();
             for (auto const& pid : poolIds) {
-                smoothedRanks[pid] = 0;
+                smoothedRanks.insert({pid,0});
                 for(auto const& [cid, cTailHits] : tailHits[pid]) {
                     score[pid] = std::max(score[pid], cTailHits);
                     //m_logger->debug("tailAccesses[{}][{}] = {}", pid, cid, cTailHits);

@@ -67,6 +67,12 @@ const std::string PROP_COMPRESSION_DEFAULT = "no";
 const std::string PROP_MAX_BG_JOBS = "rocksdb.max_background_jobs";
 const std::string PROP_MAX_BG_JOBS_DEFAULT = "0";
 
+const std::string PROP_MAX_BG_FLUSHES = "rocksdb.max_background_flushes";
+const std::string PROP_MAX_BG_FLUSHES_DEFAULT = "1";
+
+const std::string PROP_MAX_BG_COMPACTIONS = "rocksdb.max_background_compactions";
+const std::string PROP_MAX_BG_COMPACTIONS_DEFAULT = "3";
+
 const std::string PROP_TARGET_FILE_SIZE_BASE = "rocksdb.target_file_size_base";
 const std::string PROP_TARGET_FILE_SIZE_BASE_DEFAULT = "0";
 
@@ -195,7 +201,16 @@ DB::Status CacheLib::Read(const std::string& table,
 
   if (handle == nullptr) {
     if(RDRead(table, key, fields, result) != kNotFound) {
-      Insert(table, key, result);
+      std::string data = result.front().value;
+      auto handle =
+        cache_->allocate(pools_[std::this_thread::get_id()], key, data.size());
+
+      if (handle) {
+        std::memcpy(handle->getMemory(), data.data(), data.size());
+        cache_->insertOrReplace(handle);
+      } else {
+        return kError;
+      }
     }
     return kNotFound;
   }
@@ -232,9 +247,7 @@ DB::Status CacheLib::Update(const std::string& table,
                             const std::string& key,
                             std::vector<Field>& values) {
   auto item = cache_->find(key);
-  if (item == nullptr) {
-    return RDUpdate(table, key, values);
-  }
+  RDUpdate(table, key, values);
 
   std::string data = values.front().value;
 
@@ -248,23 +261,13 @@ DB::Status CacheLib::Update(const std::string& table,
     return kError;
   }
 
-  return kOK;
+  return item == nullptr ? kNotFound : kOK;
 }
 
 DB::Status CacheLib::Insert(const std::string& table,
                             const std::string& key,
                             std::vector<Field>& values) {
-  std::string data = values.front().value;
   RDInsert(table, key, values);
-
-  auto handle =
-      cache_->allocate(pools_[std::this_thread::get_id()], key, data.size());
-  if (handle) {
-    std::memcpy(handle->getMemory(), data.data(), data.size());
-    cache_->insert(handle);
-  } else {
-    return kError;
-  }
 
   return kOK;
 }
@@ -362,6 +365,16 @@ void CacheLib::RDGetOptions(
     }
 
     int val = std::stoi(
+        props_->GetProperty(PROP_MAX_BG_FLUSHES, PROP_MAX_BG_FLUSHES_DEFAULT));
+    if (val != 0) {
+      opt->max_background_flushes = val;
+    }
+    val = std::stoi(
+        props_->GetProperty(PROP_MAX_BG_COMPACTIONS, PROP_MAX_BG_COMPACTIONS_DEFAULT));
+    if (val != 0) {
+      opt->max_background_compactions = val;
+    }
+    val = std::stoi(
         props_->GetProperty(PROP_MAX_BG_JOBS, PROP_MAX_BG_JOBS_DEFAULT));
     if (val != 0) {
       opt->max_background_jobs = val;

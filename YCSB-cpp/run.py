@@ -22,7 +22,7 @@ util_script = f'{scripts_dir}/utils.sh'
 results_dir = f'{workspace}/profiling_results'
 zipfian_coeficients = [0.99] # [0.4, 0.6, 0.8, 0.99, 1.2, 1.4]
 threads = 4
-runs = 3
+runs = 2
 load = True
 
 workloads_dir = f'{workspace}/workloads'
@@ -30,10 +30,10 @@ workloads = ['workloada', 'workloadc']
 
 # Default settings for ycsb
 settings = {
-    'maxexecutiontime' : 900,
+    'maxexecutiontime' : 600,
     'operationcount' : 1_000_000_000,
     'recordcount': 1_000_000,
-    'cachelib.cachesize': 200_000_000, # in bytes
+    'cachelib.cachesize': 1_000_000_000, # in bytes
     'status.interval': 1,
     'readallfields': 'false',
     'fieldcount' : 1,
@@ -44,6 +44,9 @@ settings = {
     'rocksdb.write_buffer_size': 134217728,
     'rocksdb.max_write_buffer_number': 2,
     'rocksdb.level0_file_number_compaction_trigger': 4,
+    'rocksdb.copmression': 'no',
+    'rocksdb.max_background_flushes': 1,
+    'rocksdb.max_background_compactions': 3,
     'threadcount': f'{threads}'
 }
 
