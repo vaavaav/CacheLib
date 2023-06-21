@@ -1,13 +1,19 @@
 
 threads: 4 
-tuns: 2 
+runs: 1 
 load: True
 zipfian coeficients : [0.99]
 ---
-maxexecutiontime: 600
+1zipf_3uni: {'zipfian_const': '0.99', 'requestdistribution.0': 'zipfian', 'requestdistribution.1': 'uniform', 'requestdistribution.2': 'uniform', 'requestdistribution.3': 'uniform'}
+2zipf_2uni: {'zipfian_const': '0.99', 'requestdistribution.0': 'zipfian', 'requestdistribution.1': 'zipfian', 'requestdistribution.2': 'uniform', 'requestdistribution.3': 'uniform'}
+3zipf_1uni: {'zipfian_const': '0.99', 'requestdistribution.0': 'zipfian', 'requestdistribution.1': 'zipfian', 'requestdistribution.2': 'zipfian', 'requestdistribution.3': 'uniform'}
+uniform: {'requestdistribution': 'uniform'}
+zipfian_0_99: {'requestdistribution': 'zipfian', 'zipfian_const': 0.99}
+---
+maxexecutiontime: 300
 operationcount: 1000000000
 recordcount: 1000000
-cachelib.cachesize: 1000000000
+cachelib.cachesize: 100000000
 status.interval: 1
 readallfields: false
 fieldcount: 1

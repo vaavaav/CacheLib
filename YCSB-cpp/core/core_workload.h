@@ -19,6 +19,8 @@
 #include "counter_generator.h"
 #include "acknowledged_counter_generator.h"
 #include "utils.h"
+#include <unordered_map>
+#include <thread>
 #include <atomic>
 
 namespace ycsbc {
@@ -168,13 +170,14 @@ class CoreWorkload {
   /// Zipfian constant for transaction key generation.
   ///
   static const std::string ZIPFIAN_CONST_PROPERTY;
+  static const std::string ZIPFIAN_CONST_DEFAULT;
 
 
   ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
   ///
-  virtual void Init(const utils::Properties &p);
+  virtual void Init(std::string const property_suffix, const utils::Properties &p);
 
   virtual bool DoInsert(DB &db);
   virtual bool DoTransaction(DB &db);
@@ -208,7 +211,7 @@ class CoreWorkload {
 
  protected:
 
-  static Generator<uint64_t> *GetFieldLenGenerator(const utils::Properties &p);
+  static Generator<uint64_t> *GetFieldLenGenerator(std::string property_suffix, const utils::Properties &p);
   std::string BuildKeyName(uint64_t key_num);
   void BuildValues(std::vector<DB::Field> &values);
   void BuildSingleValue(std::vector<DB::Field> &update);
@@ -229,7 +232,7 @@ class CoreWorkload {
   bool write_all_fields_;
   Generator<uint64_t> *field_len_generator_;
   DiscreteGenerator<Operation> op_chooser_;
-  Generator<uint64_t> *key_chooser_; // transaction key gen
+  Generator<uint64_t> *key_chooser_;
   Generator<uint64_t> *field_chooser_;
   Generator<uint64_t> *scan_len_chooser_;
   CounterGenerator *insert_key_sequence_; // load insert key gen
