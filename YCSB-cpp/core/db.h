@@ -100,6 +100,11 @@ class DB {
   ///
   virtual Status Delete(const std::string &table, const std::string &key) = 0;
 
+  //
+  virtual void Active() = 0;
+  virtual void Inactive() = 0;
+  //
+
   virtual ~DB() { }
 
   void SetProps(utils::Properties *props) {

@@ -38,6 +38,10 @@
 #include <folly/Range.h>
 #pragma GCC diagnostic pop
 
+#include <holpaca/data_plane/autonomous_stage.h>
+#include <holpaca/data_plane/cache_server.h>
+#include <holpaca/data_plane/stage_server.h>
+
 #include "cachelib/allocator/CCacheManager.h"
 #include "cachelib/allocator/Cache.h"
 #include "cachelib/allocator/CacheAllocatorConfig.h"
@@ -63,6 +67,7 @@
 #include "cachelib/allocator/Refcount.h"
 #include "cachelib/allocator/TempShmMapping.h"
 #include "cachelib/allocator/TlsActiveItemRing.h"
+#include "cachelib/allocator/Tracker.h"
 #include "cachelib/allocator/TypedHandle.h"
 #include "cachelib/allocator/Util.h"
 #include "cachelib/allocator/memory/MemoryAllocator.h"
@@ -79,11 +84,6 @@
 #include "cachelib/common/Time.h"
 #include "cachelib/common/Utils.h"
 #include "cachelib/shm/ShmManager.h"
-
-#include <holpaca/data_plane/autonomous_stage.h>
-#include <holpaca/data_plane/stage_server.h>
-#include <holpaca/data_plane/cache_server.h>
-
 
 namespace facebook {
 namespace cachelib {
@@ -178,7 +178,8 @@ class GET_CLASS_NAME(ObjectCache, ObjectHandleInvalid);
 // find/insert/remove interface similar to a hash table.
 //
 template <typename CacheTrait>
-class CacheAllocator : public CacheBase, public holpaca::data_plane::CacheServer {
+class CacheAllocator : public CacheBase,
+                       public holpaca::data_plane::CacheServer {
  public:
   using CacheT = CacheAllocator<CacheTrait>;
   using MMType = typename CacheTrait::MMType;
@@ -1058,8 +1059,11 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::CacheServer
   // @param reaperThrottleConfig    throttling config
   bool startNewReaper(std::chrono::milliseconds interval,
                       util::Throttler::Config reaperThrottleConfig);
-  template<typename T, typename... Args>
+  template <typename T, typename... Args>
   bool startNewHolpacaStage(std::chrono::milliseconds interval, Args&&... args);
+
+  bool startNewTracker(std::chrono::milliseconds interval,
+                       std::string pathToFile);
 
   // Stop existing workers with a timeout
   bool stopPoolRebalancer(std::chrono::seconds timeout = std::chrono::seconds{
@@ -1070,6 +1074,7 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::CacheServer
   bool stopMemMonitor(std::chrono::seconds timeout = std::chrono::seconds{0});
   bool stopReaper(std::chrono::seconds timeout = std::chrono::seconds{0});
   bool stopHolpacaStage(std::chrono::seconds timeout = std::chrono::seconds{0});
+  bool stopTracker(std::chrono::seconds timeout = std::chrono::seconds{0});
 
   // Set pool optimization to either true or false
   //
@@ -2073,6 +2078,7 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::CacheServer
 
   // holpaca
   std::unique_ptr<holpaca::data_plane::Stage> holpaca_stage_;
+  std::unique_ptr<Tracker> tracker_;
 
   // check whether a pool is a slabs pool
   std::array<bool, MemoryPoolManager::kMaxPools> isCompactCachePool_{};
@@ -2159,30 +2165,72 @@ class CacheAllocator : public CacheBase, public holpaca::data_plane::CacheServer
   friend class GET_DECORATED_CLASS_NAME(objcache::test,
                                         ObjectCache,
                                         ObjectHandleInvalid);
-  public:
-    void resize(holpaca::Id src, holpaca::Id dst, size_t delta) override final {
-      this->resizePools(static_cast<PoolId>(src), static_cast<PoolId>(dst), delta);
-    }
 
-    holpaca::common::Status getStatus() override final {
-      holpaca::common::Status result = {};
-      for (auto const& id : getPoolIds()) {
-        auto pool_stats = getPoolStats(id);
-        std::map<uint64_t, uint32_t> tailHits;
-        for (auto const& [cid, cs]: pool_stats.cacheStats) {
-          tailHits[cid] = cs.containerStat.numTailAccesses;
-        }
-        result[id] = holpaca::common::SubStatus {
-            pool_stats.poolSize,
-            pool_stats.freeMemoryBytes(),
-            static_cast<uint32_t>(pool_stats.numPoolGetHits),
-            0,
-            pool_stats.numEvictions(),
-            tailHits
-          };
-      }
-      return result;
+ public:
+  void resize(holpaca::Id src, holpaca::Id dst, size_t delta) override final {
+    this->resizePools(
+        static_cast<PoolId>(src), static_cast<PoolId>(dst), delta);
+  }
+
+  void resize(holpaca::Id target, size_t newSize) override final {
+    size_t currSize = getPoolStats(target).poolSize;
+    if (currSize > newSize) {
+      shrinkPool(target, currSize - newSize);
+    } else {
+      growPool(target, newSize - currSize);
     }
+  }
+
+  holpaca::common::Status getStatus() override final {
+    holpaca::common::Status result = {};
+    for (auto const& id : getPoolIds()) {
+      bool isActive{[&] {
+        std::lock_guard<std::mutex> lock(active_pools_mutex);
+        return active_pools.find(id) != active_pools.end();
+      }()};
+      auto pool_stats = getPoolStats(id);
+      std::map<uint64_t, uint32_t> tailHits;
+      for (auto const& [cid, cs] : pool_stats.cacheStats) {
+        tailHits[cid] = cs.containerStat.numTailAccesses;
+      }
+      result[id] = holpaca::common::SubStatus{
+          pool_stats.poolSize,
+          pool_stats.freeMemoryBytes(),
+          static_cast<uint32_t>(pool_stats.numPoolGetHits),
+          0,
+          pool_stats.numEvictions(),
+          tailHits,
+          isActive};
+    }
+    return result;
+  }
+
+ private:
+  std::mutex active_pools_mutex;
+  std::unordered_map<PoolId, int> active_pools;
+
+ public:
+  void connect(PoolId pid) {
+    std::lock_guard<std::mutex> guard(active_pools_mutex);
+    if (active_pools.find(pid) == active_pools.end()) {
+      active_pools[pid] = 1;
+    } else {
+      active_pools[pid]++;
+    }
+  }
+  void disconnect(PoolId pid) {
+    std::lock_guard<std::mutex> guard(active_pools_mutex);
+    if (active_pools.find(pid) != active_pools.end()) {
+      auto r = (--active_pools[pid]);
+      if (r == 0) {
+        active_pools.erase(pid);
+      }
+    }
+  }
+
+  size_t size() {
+    return this->getCacheMemoryStats().ramCacheSize;
+  }
 };
 } // namespace cachelib
 } // namespace facebook
@@ -2218,8 +2266,6 @@ using Lru2QAllocator = CacheAllocator<Lru2QCacheTrait>;
 // inserted items. And eventually it will onl admit items that are accessed
 // beyond a threshold into the warm cache.
 using TinyLFUAllocator = CacheAllocator<TinyLFUCacheTrait>;
-
-
 
 } // namespace cachelib
 } // namespace facebook

@@ -9,6 +9,7 @@ namespace holpaca::common {
         uint32_t lookups;
         uint64_t evictions;
         std::map<uint64_t, uint32_t> tailAccesses;
+        bool isActive;
     };
     
     using Status = std::map<holpaca::Id, SubStatus> ;

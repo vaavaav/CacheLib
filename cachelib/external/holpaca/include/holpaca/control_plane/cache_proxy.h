@@ -24,6 +24,8 @@ namespace holpaca::control_plane {
             CacheProxy(char const* address); 
 
             void resize(Id srcPool, Id dstPool, size_t delta) override final;
+            void resize(Id target, size_t newSize) override final;
+            size_t size() override final;
 
             holpaca::common::Status getStatus() override final;
     };

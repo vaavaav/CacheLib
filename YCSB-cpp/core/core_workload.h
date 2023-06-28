@@ -172,6 +172,17 @@ class CoreWorkload {
   static const std::string ZIPFIAN_CONST_PROPERTY;
   static const std::string ZIPFIAN_CONST_DEFAULT;
 
+  ///
+  /// Request key domain start
+  ///
+  static const std::string REQUEST_KEY_DOMAIN_START_PROPERTY;
+  static const std::string REQUEST_KEY_DOMAIN_START_DEFAULT;
+
+  ///
+  /// Request key domain end
+  ///
+  static const std::string REQUEST_KEY_DOMAIN_END_PROPERTY;
+
 
   ///
   /// Initialize the scenario.

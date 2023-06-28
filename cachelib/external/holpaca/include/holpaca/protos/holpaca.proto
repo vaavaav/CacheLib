@@ -4,8 +4,16 @@ package holpaca;
 
 service cache {
     rpc GetStatus(StatusRequest) returns (Status) {}
+    rpc GetSize(Empty) returns (Size) {}
     rpc Resize(ResizeRequest) returns (ResizeResponse) {}
+    rpc SingleResize(SingleResizeRequest) returns (ResizeResponse) {}
 }
+
+message Empty {}
+message Size {
+    uint64 value = 1;
+}
+
 
 message StatusRequest {
     repeated uint64 ids = 1;
@@ -15,6 +23,11 @@ message ResizeRequest {
     uint64 src = 1;
     uint64 dst = 2;
     uint64 delta = 3;
+}
+
+message SingleResizeRequest {
+    uint64 target = 1;
+    uint64 newSize = 2;
 }
 
 message ResizeResponse {
@@ -28,6 +41,7 @@ message SubStatus {
     uint32 lookups = 4;
     uint64 evictions = 5;
     map<uint64, uint32> tailAccesses = 6;
+    bool isActive = 7;
 }
 
 message Status {

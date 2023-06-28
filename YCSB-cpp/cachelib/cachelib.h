@@ -33,6 +33,9 @@ class CacheLib : public DB {
 
   Status Delete(const std::string &table, const std::string &key);
 
+  void Active();
+  void Inactive();
+
   Status RDRead(const std::string &table, const std::string &key,
               const std::vector<std::string> *fields, std::vector<Field> &result);
 
@@ -64,7 +67,6 @@ class CacheLib : public DB {
   static int ref_cnt_;
   static std::unique_ptr<CacheLibAllocator> cache_;
   static std::unordered_map<std::thread::id, facebook::cachelib::PoolId> pools_;
-
 };
 
 DB *NewCacheLib();

@@ -33,10 +33,9 @@ PoolResizer::PoolResizer(CacheBase& cache,
   if (!strategy_) {
     strategy_ = std::make_shared<PoolResizeStrategy>();
   }
-  myfile.open("/tmp/resizer.log");
 }
 
-PoolResizer::~PoolResizer() { myfile.close(); stop(std::chrono::seconds(0)); }
+PoolResizer::~PoolResizer() { stop(std::chrono::seconds(0)); }
 
 void PoolResizer::work() {
   const auto pools = cache_.getRegularPoolIdsForResize();
@@ -67,7 +66,6 @@ void PoolResizer::work() {
         ++slabsReleased_;
         const auto elapsed_time =
             static_cast<uint64_t>(util::getCurrentTimeMs() - now);
-        myfile << std::to_string(poolId) << "," << std::to_string(classId) << "," << std::to_string(elapsed_time) << std::endl;
         // Log the event about the Pool which released the Slab along with
         // the number of slabs. Only Victim Pool class information is
         // relevant here.

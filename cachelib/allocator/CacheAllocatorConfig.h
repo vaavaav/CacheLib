@@ -269,6 +269,11 @@ class CacheAllocatorConfig {
     std::chrono::milliseconds periodicity
   );
 
+  CacheAllocatorConfig& enableTracker(
+    std::chrono::milliseconds periodicity,
+    std::string pathToFile
+  );
+
   // This enables an optimization for Pool rebalancing and resizing.
   // The rough idea is to ensure only the least useful items are evicted when
   // we move slab memory around. Come talk to Cache Library team if you think
@@ -465,7 +470,10 @@ class CacheAllocatorConfig {
 
   //holpaca
   bool enable_holpaca {false};
+  bool enable_tracker {false};
   std::chrono::milliseconds holpaca_periodicity{0};
+  std::chrono::milliseconds tracker_periodicity{0};
+  std::string tracker_path {"tmp/tracker.log"};
 
   // step size for compact cache size optimization: how many percents of the
   // victim to move
@@ -932,6 +940,16 @@ CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enableHolpaca(
   return *this;
 }
 
+template <typename T>
+CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enableTracker(
+    std::chrono::milliseconds periodicity,
+    std::string pathToFile
+) {
+  enable_tracker = true;
+  tracker_periodicity = periodicity;
+  tracker_path = pathToFile;
+  return *this;
+}
 template <typename T>
 CacheAllocatorConfig<T>& CacheAllocatorConfig<T>::enablePoolRebalancing(
     std::shared_ptr<RebalanceStrategy> defaultRebalanceStrategy,

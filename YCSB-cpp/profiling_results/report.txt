@@ -1,6 +1,6 @@
 
 threads: 4 
-runs: 1 
+runs: 2 
 load: True
 zipfian coeficients : [0.99]
 ---
@@ -10,10 +10,10 @@ zipfian coeficients : [0.99]
 uniform: {'requestdistribution': 'uniform'}
 zipfian_0_99: {'requestdistribution': 'zipfian', 'zipfian_const': 0.99}
 ---
-maxexecutiontime: 300
+maxexecutiontime: 600
 operationcount: 1000000000
 recordcount: 1000000
-cachelib.cachesize: 100000000
+cachelib.cachesize: 200000000
 status.interval: 1
 readallfields: false
 fieldcount: 1
@@ -21,6 +21,7 @@ fieldlength: 1106
 cachelib.pool_resizer: on
 cachelib.tail_hits_tracking: on
 rocksdb.dbname: /home/gsd/CacheLib/YCSB-cpp/db_backup
+rocksdb.destroy: true
 rocksdb.write_buffer_size: 134217728
 rocksdb.max_write_buffer_number: 2
 rocksdb.level0_file_number_compaction_trigger: 4
@@ -28,3 +29,24 @@ rocksdb.copmression: no
 rocksdb.max_background_flushes: 1
 rocksdb.max_background_compactions: 3
 threadcount: 4
+insertorder: nothashed
+sleepafterload.0: 0
+maxexecutiontime.0: 600
+insertstart.0: 0
+request_key_domain_start.0: 0
+request_key_domain_end.0: 249999
+sleepafterload.1: 60
+maxexecutiontime.1: 480
+insertstart.1: 250000
+request_key_domain_start.1: 250000
+request_key_domain_end.1: 499999
+sleepafterload.2: 120
+maxexecutiontime.2: 360
+insertstart.2: 500000
+request_key_domain_start.2: 500000
+request_key_domain_end.2: 749999
+sleepafterload.3: 180
+maxexecutiontime.3: 240
+insertstart.3: 750000
+request_key_domain_start.3: 750000
+request_key_domain_end.3: 999999

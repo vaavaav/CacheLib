@@ -8,6 +8,7 @@
 #include <holpaca/control_plane/cache_proxy.h>
 #include <holpaca/control_algorithm/control_algorithm.h>
 #include <holpaca/control_algorithm/marginal_hits.h>
+#include <holpaca/control_algorithm/proportional_share.h>
 
 #include <grpc/grpc.h>
 #include <grpcpp/server.h>
@@ -38,7 +39,7 @@ namespace holpaca::control_plane {
           logger->info("Initialization");
           proxy = new CacheProxy(data_plane::config::stage_address);
           m_control_algorithms.push_back(
-            std::make_shared<MarginalHits>(proxy, periodicity)
+            std::make_shared<ProportionalShare>(proxy, periodicity)
           );
         }
 

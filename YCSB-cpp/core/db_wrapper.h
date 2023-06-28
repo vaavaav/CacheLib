@@ -87,6 +87,16 @@ class DBWrapper : public DB {
     }
     return s;
   }
+
+  void Active() {
+    db_->Active();
+  }
+  void Inactive(){
+    db_->Inactive();
+  }
+
+
+
  private:
   DB *db_;
   Measurements *measurements_;

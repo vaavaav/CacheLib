@@ -77,8 +77,6 @@ class PoolResizer : public PeriodicWorker {
   // slab release stats for resizer.
   ReleaseStats stats_;
 
-  std::ofstream myfile;
-
   // implements the actual logic of running tryRebalancing and
   // updating the stats
   void work() final;

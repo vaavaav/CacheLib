@@ -21,9 +21,10 @@
 #include "countdown_latch.h"
 #include "db_factory.h"
 #include "measurements.h"
-#include "terminator_thread.h"
 #include "timer.h"
 #include "utils.h"
+
+using namespace std::chrono_literals;
 
 void UsageMessage(const char* command);
 bool StrStartWith(const char* str, const char* pre);
@@ -45,8 +46,9 @@ void StatusThread(std::vector<ycsbc::Measurements*>* measurements,
     std::cout << std::put_time(std::localtime(&now_c), "%F %T") << ' '
               << static_cast<long long>(elapsed_time.count()) << " sec: ";
 
-    for(int i = 0; i < measurements->size(); i++) {
-      std::cout << "worker-" + std::to_string(i) + " { " + measurements->at(i)->GetStatusMsg() + " } ";
+    for (int i = 0; i < measurements->size(); i++) {
+      std::cout << "worker-" + std::to_string(i) + " { " +
+                       measurements->at(i)->GetStatusMsg() + " } ";
     }
     std::cout << std::endl;
 
@@ -109,8 +111,8 @@ int main(const int argc, const char* argv[]) {
     timer.Start();
     std::future<void> status_future;
     if (show_status) {
-      status_future = std::async(std::launch::async, StatusThread, &measurements,
-                                 &latch, status_interval);
+      status_future = std::async(std::launch::async, StatusThread,
+                                 &measurements, &latch, status_interval);
     }
     std::vector<std::future<int>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
@@ -119,7 +121,7 @@ int main(const int argc, const char* argv[]) {
         thread_ops++;
       }
       client_threads.emplace_back(
-          std::async(std::launch::async, ycsbc::ClientThread, dbs[i], wls[i],
+          std::async(std::launch::async, ycsbc::ClientThread, 0s, 0s, dbs[i], wls[i],
                      thread_ops, true, true, !do_transaction, &latch));
     }
     assert((int)client_threads.size() == num_threads);
@@ -140,12 +142,9 @@ int main(const int argc, const char* argv[]) {
     std::cout << "Load operations(ops): " << sum << std::endl;
     std::cout << "Load throughput(ops/sec): " << sum / runtime << std::endl;
   }
-
-  for(int i = 0; i < num_threads; i++) {
+  for (int i = 0; i < num_threads; i++) {
     measurements[i]->Reset();
   }
-  std::this_thread::sleep_for(
-      std::chrono::seconds(stoi(props.GetProperty("sleepafterload", "0"))));
 
   // transaction phase
   if (do_transaction) {
@@ -158,25 +157,19 @@ int main(const int argc, const char* argv[]) {
     timer.Start();
     std::future<void> status_future;
     if (show_status) {
-      status_future = std::async(std::launch::async, StatusThread, &measurements,
-                                 &latch, status_interval);
+      status_future = std::async(std::launch::async, StatusThread,
+                                 &measurements, &latch, status_interval);
     }
-    std::future<void> terminator_thread;
     std::vector<std::future<int>> client_threads;
-    const std::chrono::seconds maxexecutiontime{
-        stol(props.GetProperty("maxexecutiontime", "0"))};
-    if (maxexecutiontime.count() > 0) {
-      terminator_thread =
-          std::async(std::launch::async, ycsbc::TerminatorThread,
-                     maxexecutiontime, &wls, &client_threads);
-    }
     for (int i = 0; i < num_threads; ++i) {
       int thread_ops = total_ops / num_threads;
+      std::chrono::seconds maxexecutiontime = std::chrono::seconds(stol(props.GetProperty("maxexecutiontime." + std::to_string(i), props.GetProperty("maxexecutiontime", "0"))));
+      std::chrono::seconds sleepafterload = std::chrono::seconds(stol(props.GetProperty("sleepafterload." + std::to_string(i), props.GetProperty("sleepafterload", "0"))));
       if (i < total_ops % num_threads) {
         thread_ops++;
       }
       client_threads.emplace_back(
-          std::async(std::launch::async, ycsbc::ClientThread, dbs[i], wls[i],
+          std::async(std::launch::async, ycsbc::ClientThread, sleepafterload, maxexecutiontime, dbs[i], wls[i],
                      thread_ops, false, !do_load, true, &latch));
     }
     assert((int)client_threads.size() == num_threads);
@@ -190,9 +183,6 @@ int main(const int argc, const char* argv[]) {
 
     if (show_status) {
       status_future.wait();
-    }
-    if (maxexecutiontime.count() > 0) {
-      terminator_thread.wait();
     }
 
     std::cout << "Run runtime(sec): " << runtime << std::endl;

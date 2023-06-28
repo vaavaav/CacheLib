@@ -25,6 +25,9 @@ const std::string PROP_CACHE_SIZE_DEFAULT =
 const std::string PROP_CACHE_ALLOCATOR = "cachelib.cache_allocator";
 const std::string PROP_CACHE_ALLOCATOR_DEFAULT = "lru";
 
+const std::string PROP_CACHE_TRACKER = "cachelib.tracker";
+const std::string PROP_CACHE_TRACKER_DEFAULT = "/tmp/tracker.log";
+
 const std::string PROP_POOL_OPTIMIZER = "cachelib.pool_optimizer";
 const std::string PROP_POOL_OPTIMIZER_DEFAULT = "off";
 
@@ -152,7 +155,7 @@ void CacheLib::Init() {
         .setCacheSize(std::stoi(
             props_->GetProperty(PROP_CACHE_SIZE, PROP_CACHE_SIZE_DEFAULT)))
         .setCacheName("YCSBenchmark")
-        .setAccessConfig({25, 10});
+        .setAccessConfig({25, 15});
     if (props_->GetProperty(PROP_TAIL_HITS_TRACKING,
                             PROP_TAIL_HITS_TRACKING_DEFAULT) == "on") {
       config.enableTailHitsTracking();
@@ -181,6 +184,10 @@ void CacheLib::Init() {
           std::chrono::milliseconds(std::stoi(props_->GetProperty(
               PROP_HOLPACA_PERIODICITY, PROP_HOLPACA_PERIODICITY_DEFAULT))));
     }
+    config.enableTracker(
+      std::chrono::milliseconds(1000),
+      props_->GetProperty(PROP_CACHE_TRACKER, PROP_CACHE_TRACKER_DEFAULT)
+    );
     config.validate();
 
     cache_ = std::make_unique<CacheLibAllocator>(config);
@@ -193,6 +200,17 @@ void CacheLib::Init() {
                           std::stof(props_->GetProperty("threadcount", "1")));
 }
 
+void CacheLib::Active() {
+  if (props_->GetProperty(PROP_HOLPACA, PROP_HOLPACA_DEFAULT) == "on") {
+    cache_->connect(pools_[std::this_thread::get_id()]);
+  }
+}
+void CacheLib::Inactive() {
+  if (props_->GetProperty(PROP_HOLPACA, PROP_HOLPACA_DEFAULT) == "on") {
+    cache_->disconnect(pools_[std::this_thread::get_id()]);
+  }
+}
+
 DB::Status CacheLib::Read(const std::string& table,
                           const std::string& key,
                           const std::vector<std::string>* fields,
@@ -200,14 +218,14 @@ DB::Status CacheLib::Read(const std::string& table,
   auto handle = cache_->find(key);
 
   if (handle == nullptr) {
-    if(RDRead(table, key, fields, result) != kNotFound) {
+    if(RDRead(table, key, fields, result) == kOK) {
       std::string data = result.front().value;
-      auto handle =
+      auto new_handle =
         cache_->allocate(pools_[std::this_thread::get_id()], key, data.size());
 
-      if (handle) {
-        std::memcpy(handle->getMemory(), data.data(), data.size());
-        cache_->insertOrReplace(handle);
+      if (new_handle) {
+        std::memcpy(new_handle->getMemory(), data.data(), data.size());
+        cache_->insertOrReplace(new_handle);
       } else {
         return kError;
       }
@@ -267,9 +285,7 @@ DB::Status CacheLib::Update(const std::string& table,
 DB::Status CacheLib::Insert(const std::string& table,
                             const std::string& key,
                             std::vector<Field>& values) {
-  RDInsert(table, key, values);
-
-  return kOK;
+  return RDInsert(table, key, values);
 }
 
 DB::Status CacheLib::Delete(const std::string& table, const std::string& key) {

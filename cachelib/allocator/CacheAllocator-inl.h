@@ -243,6 +243,9 @@ void CacheAllocator<CacheTrait>::initWorkers() {
   if (config_.enable_holpaca) {
     startNewHolpacaStage<holpaca::data_plane::StageServer>(config_.holpaca_periodicity);
   }
+  if (config_.enable_tracker) {
+    startNewTracker(config_.tracker_periodicity, config_.tracker_path);
+  }
 }
 
 template <typename CacheTrait>
@@ -3631,6 +3634,17 @@ bool CacheAllocator<CacheTrait>::startNewHolpacaStage(
 }
 
 template <typename CacheTrait>
+bool CacheAllocator<CacheTrait>::startNewTracker( 
+  std::chrono::milliseconds interval,
+  std::string pathToFile
+) {
+  if (!startNewWorker("Tracker", tracker_, interval, pathToFile)) {
+    return false;
+  }
+  return true;
+}
+
+template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::stopPoolRebalancer(
     std::chrono::seconds timeout) {
   return stopWorker("PoolRebalancer", poolRebalancer_, timeout);
@@ -3666,6 +3680,11 @@ bool CacheAllocator<CacheTrait>::stopHolpacaStage(std::chrono::seconds timeout) 
   holpaca_stage_.reset();
   XLOGF(DBG1, "Stopped worker '{}'", "Holpaca");
   return true;
+} 
+
+template <typename CacheTrait>
+bool CacheAllocator<CacheTrait>::stopTracker(std::chrono::seconds timeout) {
+  return stopWorker("Tracker", tracker_, timeout);
 } 
 
 template <typename CacheTrait>

@@ -10,6 +10,7 @@
 #include <grpc++/server_context.h>
 #include <holpaca/protos/holpaca.grpc.pb.h>
 #include <holpaca/protos/holpaca.pb.h>
+#include <mutex>
 
 using grpc::ServerContext;
 using namespace holpaca;
@@ -34,6 +35,7 @@ namespace holpaca::data_plane {
                         for(auto const& [cid, tailAccesses] : value.tailAccesses) {
                             (*ss.mutable_tailaccesses())[cid] = tailAccesses;
                         }
+                        ss.set_isactive(value.isActive);
                         (*response->mutable_subs())[id] = ss;
                     }
                 } else {
@@ -46,6 +48,7 @@ namespace holpaca::data_plane {
                         for(auto const& [cid, tailAccesses] : status[id].tailAccesses) {
                             (*ss.mutable_tailaccesses())[cid] = tailAccesses;
                         }
+                        ss.set_isactive(status[id].isActive);
                         (*response->mutable_subs())[id] = ss;
                     }
                 }
@@ -56,6 +59,18 @@ namespace holpaca::data_plane {
 
             grpc::Status Resize(ServerContext* context, const ResizeRequest* request, ResizeResponse* response) override final {
                 this->resize(request->src(), request->dst(), request->delta());
+
+                return grpc::Status::OK;
+            }
+
+            grpc::Status SingleResize(ServerContext* context, const SingleResizeRequest* request, ResizeResponse* response) override final {
+                this->resize(request->target(), request->newsize());
+
+                return grpc::Status::OK;
+            }
+
+            grpc::Status GetSize(ServerContext* context, const Empty* request, Size* response) override final {
+                response->set_value(this->size());
 
                 return grpc::Status::OK;
             }

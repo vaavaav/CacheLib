@@ -81,6 +81,10 @@ DB::Status BasicDB::Delete(const std::string &table, const std::string &key) {
   return kOK;
 }
 
+void BasicDB::Active() {}
+void BasicDB::Inactive() {}
+
+
 DB *NewBasicDB() {
   return new BasicDB;
 }

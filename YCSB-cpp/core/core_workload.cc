@@ -105,6 +105,13 @@ const std::string CoreWorkload::FIELD_NAME_PREFIX_DEFAULT = "field";
 const std::string CoreWorkload::ZIPFIAN_CONST_PROPERTY = "zipfian_const";
 const std::string CoreWorkload::ZIPFIAN_CONST_DEFAULT = "0.99";
 
+const std::string CoreWorkload::REQUEST_KEY_DOMAIN_START_PROPERTY =
+    "request_key_domain_start";
+const std::string CoreWorkload::REQUEST_KEY_DOMAIN_START_DEFAULT = "0";
+
+const std::string CoreWorkload::REQUEST_KEY_DOMAIN_END_PROPERTY =
+    "request_key_domain_end";
+
 namespace ycsbc {
 
 void CoreWorkload::Init(std::string const property_suffix,
@@ -198,19 +205,36 @@ void CoreWorkload::Init(std::string const property_suffix,
   // and pick another key.
   int op_count = std::stoi(p.GetProperty(OPERATION_COUNT_PROPERTY));
   int new_keys = (int)(op_count * insert_proportion); // a fudge factor
-
+  int request_key_domain_start = std::stoi(
+      p.GetProperty(REQUEST_KEY_DOMAIN_START_PROPERTY + property_suffix,
+                    p.GetProperty(REQUEST_KEY_DOMAIN_START_PROPERTY,
+                                  REQUEST_KEY_DOMAIN_START_DEFAULT)));
+  if (request_key_domain_start < 0) {
+    throw utils::Exception("Request key domain start is lesser than 0: " +
+                           std::to_string(request_key_domain_start));
+  }
+  int request_key_domain_end = std::stoi(p.GetProperty(
+      REQUEST_KEY_DOMAIN_END_PROPERTY + property_suffix,
+      p.GetProperty(REQUEST_KEY_DOMAIN_END_PROPERTY,
+                    std::to_string(record_count_ + new_keys - 1))));
+  if (request_key_domain_end > record_count_ + new_keys - 1) {
+    throw utils::Exception("Request key domain end is greater than " +
+                           std::to_string(record_count_ + new_keys - 1) + ": " +
+                           std::to_string(request_key_domain_end));
+  }
   std::string request_dist =
       p.GetProperty(REQUEST_DISTRIBUTION_PROPERTY + property_suffix,
                     p.GetProperty(REQUEST_DISTRIBUTION_PROPERTY,
                                   REQUEST_DISTRIBUTION_DEFAULT));
   if (request_dist == "uniform") {
-    key_chooser_ = new UniformGenerator(0, record_count_ + new_keys - 1);
+    key_chooser_ =
+        new UniformGenerator(request_key_domain_start, request_key_domain_end);
   } else if (request_dist == "zipfian") {
     double zipfian_const = std::stod(p.GetProperty(
         ZIPFIAN_CONST_PROPERTY + property_suffix,
         p.GetProperty(ZIPFIAN_CONST_PROPERTY, ZIPFIAN_CONST_DEFAULT)));
-    key_chooser_ =
-        new ZipfianGenerator(0, record_count_ + new_keys - 1, zipfian_const);
+    key_chooser_ = new ZipfianGenerator(
+        request_key_domain_start, request_key_domain_end, zipfian_const);
   } else {
     throw utils::Exception("Distribution not allowed for request: " +
                            request_dist);
