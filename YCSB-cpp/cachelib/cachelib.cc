@@ -3,8 +3,6 @@
 #include "core/db_factory.h"
 using std::cout;
 using std::endl;
-#include <sstream>
-#include <unordered_map>
 #include <rocksdb/cache.h>
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/merge_operator.h>
@@ -12,10 +10,13 @@ using std::endl;
 #include <rocksdb/utilities/options_util.h>
 #include <rocksdb/write_batch.h>
 
+#include <sstream>
+#include <unordered_map>
+
 #include "cachelib/allocator/CacheAllocator.h"
 #include "cachelib/allocator/HitsPerSlabStrategy.h"
-#include "cachelib/allocator/PoolOptimizeStrategy.h"
 #include "cachelib/allocator/MarginalHitsOptimizeStrategy.h"
+#include "cachelib/allocator/PoolOptimizeStrategy.h"
 
 namespace {
 const std::string PROP_CACHE_SIZE = "cachelib.cachesize";
@@ -73,7 +74,8 @@ const std::string PROP_MAX_BG_JOBS_DEFAULT = "0";
 const std::string PROP_MAX_BG_FLUSHES = "rocksdb.max_background_flushes";
 const std::string PROP_MAX_BG_FLUSHES_DEFAULT = "1";
 
-const std::string PROP_MAX_BG_COMPACTIONS = "rocksdb.max_background_compactions";
+const std::string PROP_MAX_BG_COMPACTIONS =
+    "rocksdb.max_background_compactions";
 const std::string PROP_MAX_BG_COMPACTIONS_DEFAULT = "3";
 
 const std::string PROP_TARGET_FILE_SIZE_BASE = "rocksdb.target_file_size_base";
@@ -143,8 +145,8 @@ std::mutex CacheLib::mutex_;
 std::unique_ptr<CacheLibAllocator> CacheLib::cache_ = nullptr;
 rocksdb::DB* CacheLib::db_ = nullptr;
 int CacheLib::ref_cnt_ = 0;
-std::unordered_map<std::thread::id, facebook::cachelib::PoolId>
-    CacheLib::pools_;
+thread_local int CacheLib::threadId_;
+std::vector<facebook::cachelib::PoolId> CacheLib::pools_;
 
 void CacheLib::Init() {
   RDInit();
@@ -162,7 +164,8 @@ void CacheLib::Init() {
       if (props_->GetProperty(PROP_POOL_OPTIMIZER,
                               PROP_POOL_OPTIMIZER_DEFAULT) == "on") {
         config.enablePoolOptimizer(
-            std::make_shared<facebook::cachelib::MarginalHitsOptimizeStrategy>(),
+            std::make_shared<
+                facebook::cachelib::MarginalHitsOptimizeStrategy>(),
             std::chrono::seconds(1),
             std::chrono::seconds(1),
             0);
@@ -184,32 +187,25 @@ void CacheLib::Init() {
           std::chrono::milliseconds(std::stoi(props_->GetProperty(
               PROP_HOLPACA_PERIODICITY, PROP_HOLPACA_PERIODICITY_DEFAULT))));
     }
-    config.enableTracker(
-      std::chrono::milliseconds(1000),
-      props_->GetProperty(PROP_CACHE_TRACKER, PROP_CACHE_TRACKER_DEFAULT)
-    );
+    if (props_->ContainsKey(PROP_CACHE_TRACKER)) {
+      config.enableTracker(
+          std::chrono::milliseconds(1000),
+          props_->GetProperty(PROP_CACHE_TRACKER, PROP_CACHE_TRACKER_DEFAULT));
+    }
     config.validate();
 
     cache_ = std::make_unique<CacheLibAllocator>(config);
+    int threads = std::stoi(props_->GetProperty("threadcount", "1"));
+    for (int i = 0; i < threads; i++) {
+      pools_.push_back(cache_->addPool(
+          std::to_string(i),
+          cache_->getCacheMemoryStats().ramCacheSize * 1.0f / threads));
+    }
   }
-  std::ostringstream threadId;
-  threadId << std::this_thread::get_id();
-  pools_[std::this_thread::get_id()] =
-      cache_->addPool(threadId.str(),
-                      cache_->getCacheMemoryStats().ramCacheSize /
-                          std::stof(props_->GetProperty("threadcount", "1")));
 }
 
-void CacheLib::Active() {
-  if (props_->GetProperty(PROP_HOLPACA, PROP_HOLPACA_DEFAULT) == "on") {
-    cache_->connect(pools_[std::this_thread::get_id()]);
-  }
-}
-void CacheLib::Inactive() {
-  if (props_->GetProperty(PROP_HOLPACA, PROP_HOLPACA_DEFAULT) == "on") {
-    cache_->disconnect(pools_[std::this_thread::get_id()]);
-  }
-}
+void CacheLib::Active() { cache_->connect(pools_[threadId_]); }
+void CacheLib::Inactive() { cache_->disconnect(pools_[threadId_]); }
 
 DB::Status CacheLib::Read(const std::string& table,
                           const std::string& key,
@@ -218,10 +214,9 @@ DB::Status CacheLib::Read(const std::string& table,
   auto handle = cache_->find(key);
 
   if (handle == nullptr) {
-    if(RDRead(table, key, fields, result) == kOK) {
+    if (RDRead(table, key, fields, result) == kOK) {
       std::string data = result.front().value;
-      auto new_handle =
-        cache_->allocate(pools_[std::this_thread::get_id()], key, data.size());
+      auto new_handle = cache_->allocate(pools_[threadId_], key, data.size());
 
       if (new_handle) {
         std::memcpy(new_handle->getMemory(), data.data(), data.size());
@@ -269,8 +264,7 @@ DB::Status CacheLib::Update(const std::string& table,
 
   std::string data = values.front().value;
 
-  auto handle =
-      cache_->allocate(pools_[std::this_thread::get_id()], key, data.size());
+  auto handle = cache_->allocate(pools_[threadId_], key, data.size());
 
   if (handle) {
     std::memcpy(handle->getMemory(), data.data(), data.size());
@@ -302,7 +296,8 @@ void CacheLib::RDInit() {
     return;
   }
 
-  const std::string& db_path = props_->GetProperty(PROP_NAME, PROP_NAME_DEFAULT);
+  const std::string& db_path =
+      props_->GetProperty(PROP_NAME, PROP_NAME_DEFAULT);
   if (db_path == "") {
     throw utils::Exception("RocksDB db path is missing");
   }
@@ -385,8 +380,8 @@ void CacheLib::RDGetOptions(
     if (val != 0) {
       opt->max_background_flushes = val;
     }
-    val = std::stoi(
-        props_->GetProperty(PROP_MAX_BG_COMPACTIONS, PROP_MAX_BG_COMPACTIONS_DEFAULT));
+    val = std::stoi(props_->GetProperty(PROP_MAX_BG_COMPACTIONS,
+                                        PROP_MAX_BG_COMPACTIONS_DEFAULT));
     if (val != 0) {
       opt->max_background_compactions = val;
     }
@@ -396,27 +391,27 @@ void CacheLib::RDGetOptions(
       opt->max_background_jobs = val;
     }
     val = std::stoi(props_->GetProperty(PROP_TARGET_FILE_SIZE_BASE,
-                                      PROP_TARGET_FILE_SIZE_BASE_DEFAULT));
+                                        PROP_TARGET_FILE_SIZE_BASE_DEFAULT));
     if (val != 0) {
       opt->target_file_size_base = val;
     }
     val = std::stoi(props_->GetProperty(PROP_TARGET_FILE_SIZE_MULT,
-                                      PROP_TARGET_FILE_SIZE_MULT_DEFAULT));
+                                        PROP_TARGET_FILE_SIZE_MULT_DEFAULT));
     if (val != 0) {
       opt->target_file_size_multiplier = val;
     }
     val = std::stoi(props_->GetProperty(PROP_MAX_BYTES_FOR_LEVEL_BASE,
-                                      PROP_MAX_BYTES_FOR_LEVEL_BASE_DEFAULT));
+                                        PROP_MAX_BYTES_FOR_LEVEL_BASE_DEFAULT));
     if (val != 0) {
       opt->max_bytes_for_level_base = val;
     }
     val = std::stoi(props_->GetProperty(PROP_WRITE_BUFFER_SIZE,
-                                      PROP_WRITE_BUFFER_SIZE_DEFAULT));
+                                        PROP_WRITE_BUFFER_SIZE_DEFAULT));
     if (val != 0) {
       opt->write_buffer_size = val;
     }
     val = std::stoi(props_->GetProperty(PROP_MAX_WRITE_BUFFER,
-                                      PROP_MAX_WRITE_BUFFER_DEFAULT));
+                                        PROP_MAX_WRITE_BUFFER_DEFAULT));
     if (val != 0) {
       opt->max_write_buffer_number = val;
     }
@@ -432,27 +427,27 @@ void CacheLib::RDGetOptions(
     }
 
     val = std::stoi(props_->GetProperty(PROP_L0_COMPACTION_TRIGGER,
-                                      PROP_L0_COMPACTION_TRIGGER_DEFAULT));
+                                        PROP_L0_COMPACTION_TRIGGER_DEFAULT));
     if (val != 0) {
       opt->level0_file_num_compaction_trigger = val;
     }
     val = std::stoi(props_->GetProperty(PROP_L0_SLOWDOWN_TRIGGER,
-                                      PROP_L0_SLOWDOWN_TRIGGER_DEFAULT));
+                                        PROP_L0_SLOWDOWN_TRIGGER_DEFAULT));
     if (val != 0) {
       opt->level0_slowdown_writes_trigger = val;
     }
-    val = std::stoi(
-        props_->GetProperty(PROP_L0_STOP_TRIGGER, PROP_L0_STOP_TRIGGER_DEFAULT));
+    val = std::stoi(props_->GetProperty(PROP_L0_STOP_TRIGGER,
+                                        PROP_L0_STOP_TRIGGER_DEFAULT));
     if (val != 0) {
       opt->level0_stop_writes_trigger = val;
     }
 
     if (props_->GetProperty(PROP_USE_DIRECT_WRITE,
-                          PROP_USE_DIRECT_WRITE_DEFAULT) == "true") {
+                            PROP_USE_DIRECT_WRITE_DEFAULT) == "true") {
       opt->use_direct_io_for_flush_and_compaction = true;
     }
-    if (props_->GetProperty(PROP_USE_DIRECT_READ, PROP_USE_DIRECT_READ_DEFAULT) ==
-        "true") {
+    if (props_->GetProperty(PROP_USE_DIRECT_READ,
+                            PROP_USE_DIRECT_READ_DEFAULT) == "true") {
       opt->use_direct_reads = true;
     }
     if (props_->GetProperty(PROP_USE_MMAP_WRITE, PROP_USE_MMAP_WRITE_DEFAULT) ==
@@ -466,8 +461,8 @@ void CacheLib::RDGetOptions(
 
     rocksdb::BlockBasedTableOptions table_options;
     size_t cache_size = 0;
-    int bloom_bits =
-        std::stoul(props_->GetProperty(PROP_BLOOM_BITS, PROP_BLOOM_BITS_DEFAULT));
+    int bloom_bits = std::stoul(
+        props_->GetProperty(PROP_BLOOM_BITS, PROP_BLOOM_BITS_DEFAULT));
     if (bloom_bits > 0) {
       table_options.filter_policy.reset(
           rocksdb::NewBloomFilterPolicy(bloom_bits));
@@ -475,11 +470,11 @@ void CacheLib::RDGetOptions(
     opt->table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     if (props_->GetProperty(PROP_INCREASE_PARALLELISM,
-                          PROP_INCREASE_PARALLELISM_DEFAULT) == "true") {
+                            PROP_INCREASE_PARALLELISM_DEFAULT) == "true") {
       opt->IncreaseParallelism();
     }
     if (props_->GetProperty(PROP_OPTIMIZE_LEVELCOMP,
-                          PROP_OPTIMIZE_LEVELCOMP_DEFAULT) == "true") {
+                            PROP_OPTIMIZE_LEVELCOMP_DEFAULT) == "true") {
       opt->OptimizeLevelStyleCompaction();
     }
   }
@@ -655,5 +650,7 @@ DB::Status CacheLib::RDDelete(const std::string& table,
 DB* NewCacheLib() { return new CacheLib; }
 
 const bool registered = DBFactory::RegisterDB("cachelib", NewCacheLib);
+
+void CacheLib::SetThreadId(int id) { threadId_ = id; }
 
 } // namespace ycsbc

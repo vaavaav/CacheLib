@@ -13,6 +13,13 @@ namespace holpaca::control_algorithm {
         Cache* cache;
         std::vector<id_t> pool_ids;
         int left {0};
+        int max {0};
+        std::unordered_map<id_t, int> priorities = {
+            {0, 1},
+            {1, 2},
+            {2, 3},
+            {3, 4}
+        };
         std::unordered_map<id_t, int> rate;
         std::vector<id_t> inactive;
 
@@ -25,7 +32,8 @@ namespace holpaca::control_algorithm {
             pool_ids.clear();
             inactive.clear();
             rate.clear();
-            left = cache->size();
+            max = cache->size();
+            left = max;
             for (auto const& [pid, status] : cache->getStatus()) {
                 if(status.isActive){
                     pool_ids.push_back(pid);
@@ -37,11 +45,22 @@ namespace holpaca::control_algorithm {
         }
 
         void compute() override final {
+            //for (auto const& pid : pool_ids){
+            //    rate[pid] = left / (static_cast<int>(pid) + 2);
+            //    m_logger->info("pool={} rate={}", pid, rate[pid]);
+            //    left -= rate[pid];
+            //    m_logger->info("left={}", left);
+            //}
+            //for (auto const& pid : pool_ids){
+            //    rate[pid] += left / pool_ids.size();
+            //}
+            int partitions = 0;
             for (auto const& pid : pool_ids){
-                rate[pid] = left / (static_cast<int>(pid)+2);
-                m_logger->info("pool={} rate={}", pid, rate[pid]);
+                partitions += priorities[pid];
+            }
+            for (auto const& pid : pool_ids){
+                rate[pid] = static_cast<int>(priorities[pid] * (static_cast<double>(max) / partitions));
                 left -= rate[pid];
-                m_logger->info("left={}", left);
             }
             for (auto const& pid : pool_ids){
                 rate[pid] += left / pool_ids.size();

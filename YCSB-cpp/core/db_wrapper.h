@@ -94,8 +94,9 @@ class DBWrapper : public DB {
   void Inactive(){
     db_->Inactive();
   }
-
-
+  void SetThreadId(int id) {
+    db_->SetThreadId(id);
+  }
 
  private:
   DB *db_;

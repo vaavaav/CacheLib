@@ -45,6 +45,7 @@ class CacheBaseTest : public CacheBase, public SlabAllocatorTestBase {
       const override {
     return {};
   }
+  std::vector<PoolId> getActivePools() override {};
   CacheMetadata getCacheMetadata() const noexcept override { return {}; }
   GlobalCacheStats getGlobalCacheStats() const override { return {}; }
   SlabReleaseStats getSlabReleaseStats() const override { return {}; }
@@ -82,6 +83,8 @@ class CacheBaseTest : public CacheBase, public SlabAllocatorTestBase {
 
  private:
   std::string cacheName{"CacheBaseTestCache"};
+  // holpaca
+ 
 };
 
 TEST_F(CacheBaseTest, RebalanceStrategyTest) {

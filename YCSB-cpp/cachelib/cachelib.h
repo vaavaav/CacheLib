@@ -20,6 +20,7 @@ using CacheLibAllocator = facebook::cachelib::Lru2QAllocator;
 class CacheLib : public DB {
  public:
   void Init();
+  void SetThreadId(int id) override;
 
   Status Read(const std::string &table, const std::string &key,
               const std::vector<std::string> *fields, std::vector<Field> &result);
@@ -66,7 +67,8 @@ class CacheLib : public DB {
   static rocksdb::DB *db_;
   static int ref_cnt_;
   static std::unique_ptr<CacheLibAllocator> cache_;
-  static std::unordered_map<std::thread::id, facebook::cachelib::PoolId> pools_;
+  static std::vector<facebook::cachelib::PoolId> pools_;
+  thread_local static int threadId_;
 };
 
 DB *NewCacheLib();

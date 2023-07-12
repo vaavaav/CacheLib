@@ -121,8 +121,8 @@ int main(const int argc, const char* argv[]) {
         thread_ops++;
       }
       client_threads.emplace_back(
-          std::async(std::launch::async, ycsbc::ClientThread, 0s, 0s, dbs[i], wls[i],
-                     thread_ops, true, true, !do_transaction, &latch));
+          std::async(std::launch::async, ycsbc::ClientThread, 0s, 0s, i, dbs[i],
+                     wls[i], thread_ops, true, true, !do_transaction, &latch));
     }
     assert((int)client_threads.size() == num_threads);
 
@@ -163,14 +163,19 @@ int main(const int argc, const char* argv[]) {
     std::vector<std::future<int>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
       int thread_ops = total_ops / num_threads;
-      std::chrono::seconds maxexecutiontime = std::chrono::seconds(stol(props.GetProperty("maxexecutiontime." + std::to_string(i), props.GetProperty("maxexecutiontime", "0"))));
-      std::chrono::seconds sleepafterload = std::chrono::seconds(stol(props.GetProperty("sleepafterload." + std::to_string(i), props.GetProperty("sleepafterload", "0"))));
+      std::chrono::seconds maxexecutiontime = std::chrono::seconds(
+          stol(props.GetProperty("maxexecutiontime." + std::to_string(i),
+                                 props.GetProperty("maxexecutiontime", "0"))));
+      std::chrono::seconds sleepafterload = std::chrono::seconds(
+          stol(props.GetProperty("sleepafterload." + std::to_string(i),
+                                 props.GetProperty("sleepafterload", "0"))));
       if (i < total_ops % num_threads) {
         thread_ops++;
       }
       client_threads.emplace_back(
-          std::async(std::launch::async, ycsbc::ClientThread, sleepafterload, maxexecutiontime, dbs[i], wls[i],
-                     thread_ops, false, !do_load, true, &latch));
+          std::async(std::launch::async, ycsbc::ClientThread, sleepafterload,
+                     maxexecutiontime, i, dbs[i], wls[i], thread_ops, false,
+                     !do_load, true, &latch));
     }
     assert((int)client_threads.size() == num_threads);
 

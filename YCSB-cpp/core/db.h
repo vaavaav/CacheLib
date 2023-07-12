@@ -110,6 +110,7 @@ class DB {
   void SetProps(utils::Properties *props) {
     props_ = props;
   }
+  virtual void SetThreadId(int id) {};
  protected:
   utils::Properties *props_;
 };

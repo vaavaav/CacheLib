@@ -2231,6 +2231,15 @@ class CacheAllocator : public CacheBase,
   size_t size() {
     return this->getCacheMemoryStats().ramCacheSize;
   }
+
+  std::vector<PoolId> getActivePools() override {
+    std::vector<PoolId> results;
+    std::lock_guard<std::mutex> guard(active_pools_mutex);
+    for (auto const& [id, _] : active_pools) {
+      results.push_back(id);
+    }
+    return results;
+  }
 };
 } // namespace cachelib
 } // namespace facebook

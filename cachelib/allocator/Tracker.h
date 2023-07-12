@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <atomic>
+#include <set>
 
 #include "cachelib/allocator/Cache.h"
 #include "cachelib/allocator/RebalanceStrategy.h"
@@ -25,13 +26,18 @@ class Tracker: public PeriodicWorker {
  private:
   CacheBase& cache_;
   std::ofstream log;
+  long time {0};
 
   void work() override final {
-       for (auto const& id : cache_.getPoolIds()) {
-        auto pool_stats = cache_.getPoolStats(id);
-        log << fmt::format("pool-{} {{ usedMem={} freeMem={} }} ", id, pool_stats.poolSize, pool_stats.freeMemoryBytes());
-      }
-      log << std::endl;
+    auto pools = cache_.getActivePools();
+    std::set<PoolId> pids (pools.begin(), pools.end());
+    log << fmt::format("{}: ", time++);
+    for (auto const& id : cache_.getPoolIds()) {
+      auto pool_stats = cache_.getPoolStats(id);
+      bool active = pids.find(id) != pids.end();
+      log << fmt::format("pool-{} {{ usedMem={} freeMem={} }} ", id, active*pool_stats.poolSize, active*pool_stats.freeMemoryBytes());
+    }
+    log << std::endl;
   }
 };
 } // namespace cachelib

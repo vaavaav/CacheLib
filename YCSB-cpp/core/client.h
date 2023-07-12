@@ -21,6 +21,7 @@ namespace ycsbc {
 
 inline int ClientThread(std::chrono::seconds sleepafterload,
                         std::chrono::seconds maxexecutiontime,
+                        int threadId,
                         ycsbc::DB* db,
                         ycsbc::CoreWorkload* wl,
                         const int num_ops,
@@ -29,6 +30,7 @@ inline int ClientThread(std::chrono::seconds sleepafterload,
                         bool cleanup_db,
                         CountDownLatch* latch) {
   try {
+    db->SetThreadId(threadId);
     if (init_db) {
       db->Init();
     }

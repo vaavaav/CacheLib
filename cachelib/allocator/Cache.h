@@ -85,6 +85,8 @@ class CacheBase {
   CacheBase(CacheBase&&) = default;
   CacheBase& operator=(CacheBase&&) = default;
 
+  virtual std::vector<PoolId> getActivePools() = 0;
+
   // Get a string referring to the cache name for this cache
   virtual const std::string getCacheName() const = 0;
 
