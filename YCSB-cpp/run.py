@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import re
+import random
 import pandas as pd
 import numpy as np
 import shutil
@@ -21,17 +22,17 @@ util_script = f'{scripts_dir}/utils.sh'
 results_dir = f'{workspace}/profiling_results'
 zipfian_coeficients = [0.99, 0.4, 0.6, 0.8, 1.2, 1.4]
 threads = 4
-runs = 2
-load = False
+runs = 1
+load = True
 db = f'{project_source_dir}/db'
 db_backup = f'{project_source_dir}/db_backup'
 
 workloads_dir = f'{workspace}/workloads'
-workloads = ['workloada', 'workloadc']
+workloads = ['workloada','workloadc']
 
 # Benchmark settings
 ycsb = {
-    'maxexecutiontime' : 600,
+    'maxexecutiontime' : 900,
     'operationcount' : 1_000_000_000,
     'recordcount': 2_000_000,
     'cachelib.cachesize': 200_000_000, # in bytes
@@ -48,20 +49,23 @@ ycsb = {
     'rocksdb.copmression': 'no',
     'rocksdb.max_background_flushes': 1,
     'rocksdb.max_background_compactions': 3,
+    'rocksdb.use_direct_reads': 'true',
+    'rocksdb.use_direct_io_for_flush_compaction': 'true',
     'threadcount': f'{threads}',
     'insertorder': 'nothashed'
 }
 # Proportional Share
-priorities = [1, 2, 3, 4]
+priorities = [1, 1, 1, 1]
 phases = []
 fraction_size = int(ycsb['recordcount'] / sum(priorities))
+timePerPhase = ycsb['maxexecutiontime'] // (threads*2 - 1)
 start = 0
 end = 0 
 for worker in range(threads):
     end += priorities[worker]
-    ycsb[f'sleepafterload.{worker}'] = worker*(10+ycsb['maxexecutiontime']//10)
-    phases.append(ycsb[f'sleepafterload.{worker}'])
+    ycsb[f'sleepafterload.{worker}'] = worker* timePerPhase 
     ycsb[f'maxexecutiontime.{worker}'] = ycsb['maxexecutiontime'] - 2*ycsb[f'sleepafterload.{worker}']
+    phases.append(ycsb[f'sleepafterload.{worker}'])
     ycsb[f'insertstart.{worker}'] = start*fraction_size
     ycsb[f'request_key_domain_start.{worker}'] = start*fraction_size
     ycsb[f'request_key_domain_end.{worker}'] = end*fraction_size-1
@@ -72,24 +76,38 @@ for worker in reversed(range(threads)):
 
 # ----
 # Distributions
+def getDistName(d):
+    return 'uni' if d == 0 else f'z{str(d).replace(".","")}'
+
 distributions = {}
-#for i in range(1,threads):
-#    distributions[f'{i}zipf_{threads-i}uni'] = {'zipfian_const' : '0.99'}
-#    for j in range(i):
-#        distributions[f'{i}zipf_{threads-i}uni'][f'requestdistribution.{j}'] = 'zipfian'
-#    for j in range(i, threads):
-#        distributions[f'{i}zipf_{threads-i}uni'][f'requestdistribution.{j}'] = 'uniform'
-#distributions['uniform'] = {
-#    'requestdistribution': 'uniform',
-#}
-for i in zipfian_coeficients:
-    distributions[f'zipfian_{str(i).replace(".","_")}'] = {
-        'requestdistribution': 'zipfian',
-        'zipfian_const': i,
-    }
+maxTests = 20 
+while maxTests > 0:
+    dist = random.sample([0]+zipfian_coeficients, threads)
+    distName = '_'.join([getDistName(d) for d in dist])
+    if distName in distributions:
+        continue
+    res = {}
+    for i in range(0,threads):
+        if dist[i] == 0:
+            res[f'requestdistribution.{i}'] = 'uniform'
+        else:
+            res[f'requestdistribution.{i}'] = 'zipfian'
+            res[f'zipfian_const.{i}'] = dist[i]
+    distributions[distName] = res
+    maxTests -= 1
+
+#for i in zipfian_coeficients:
+#    distributions[f'zipfian_{str(i).replace(".","_")}'] = {
+#        'requestdistribution': 'zipfian',
+#        'zipfian_const': i,
+#    }
 # ----
 # Setups
 setups = {}
+setups['Holpaca + SHARDS + SimAn'] = {
+    'cachelib.holpaca': 'on',
+    **ycsb
+}
 setups['CacheLib'] = {
     'cachelib.trail_hits_tracking': 'off',
     **ycsb
@@ -98,12 +116,8 @@ setups['CacheLib + Optimizer'] = {
     'cachelib.pool_optimizer': 'on',
     **ycsb
 }
-setups['Holpaca + Proportional Share'] = {
-    'cachelib.holpaca': 'on',
-    **ycsb
-}
 
-enableController = ['Holpaca + Proportional Share']
+enableController = ['Holpaca + SHARDS + SimAn']
 
 
 # ---- Utils
@@ -166,16 +180,18 @@ def getUsedMem(data):
 def getHitRate(data):
     hits = [[0] for _ in range(threads)]
     misses = [[0] for _ in range(threads)]
-    for string in data.split('\n'):
+    for string in data.split('\n')[:-4]:
         for worker in range(threads):
             if match := re.search(rf'worker-{worker} {{[^{{}}]*READ: Count=(\d+)', string):
-                hits[worker].append(int(match.group(1)) - hits[worker][-1])
+                hits[worker].append(int(match.group(1)))
             else:
                 hits[worker].append(0)
             if match := re.search(rf'worker-{worker} {{[^{{}}]*READ-FAILED: Count=(\d+)', string):
-                misses[worker].append(int(match.group(1)) - misses[worker][-1])
+                misses[worker].append(int(match.group(1)))
             else:
                 misses[worker].append(0)
+    hits = [[f-i for i,f in zip(hits[i], hits[i][1:]) ] for i in range(threads)]
+    misses = [[f-i for i,f in zip(misses[i], misses[i][1:]) ] for i in range(threads)]
     return {
         'workers': [[h/(m+h) if (m+h) else 0 for h,m in zip(hits[i],misses[i])] for i in range(threads)], 
         'global': [h/(m+h) if (m+h) else 0 for h,m in zip([np.sum(r) for r in zip(*hits)], [np.sum(r) for r in zip(*misses)])]
@@ -201,18 +217,20 @@ def gxTenants(metric, data, figfile):
     pyplot.savefig(figfile,bbox_inches='tight')
     pyplot.close('all')
 
-def gxTenantsStacked(metric, setup, data, figfile):
+def gxTenantsStacked(metric, setup, data, figfile, distribution):
     global phases
     df = pd.DataFrame([data[i][setup] for i in range(threads)]).transpose()
     for i in phases[1:-1]:
-        pyplot.axvline(x=i, linestyle="--", color="black", linewidth=0.5)
+        pyplot.axvline(x=i-1, linestyle="--", color="black", linewidth=0.5)
     x = 0
     for i,j in zip(phases,phases[1:]):
-        pyplot.figtext(0,-0.1-x*0.05, f'{"{:>3}".format(i)}-{"{:<3}".format(j)}: {("{:10.2f} "*threads).format(*[df[t][i:j].mean() for t in range(threads)])}', fontfamily='monospace')
+        pyplot.figtext(0.2,-0.1-x*0.05, f'{"{:>3}".format(i)}-{"{:<3}".format(j-1)}: {("{:12.2f} "*threads).format(*[df[t][i:j-1].mean() for t in range(threads)])}', fontfamily='monospace')
         x += 1
-    pyplot.stackplot(df.index, df.values.T)
+    pyplot.stackplot(df.index, df.values.T, labels=distribution.split('_'))
+    pyplot.title(f'{setup} - accumulated {metric}')
     pyplot.xlabel("time (s)")
     pyplot.ylabel(metric)
+    pyplot.legend(bbox_to_anchor=(1,0.5))
     pyplot.savefig(figfile,bbox_inches='tight')
     pyplot.close()
 
@@ -230,6 +248,10 @@ def gxGlobal(metric, data, figfile):
     pyplot.close()
 
 # -- 
+
+for f in os.listdir(results_dir):
+    os.remove(f'{results_dir}/{f}')
+
 print('Printing benchmark details')
 report = open(f'{results_dir}/info.txt', 'wt')
 report.write(f'''
@@ -288,5 +310,5 @@ for workload in workloads:
             # Building graphics
             gxTenants(metric, results_per_worker[metric], f'{results_dir}/{workload}_{distribution}_{metric}')
             for setup in setups:
-                gxTenantsStacked(metric, setup, results_per_worker[metric], f'{results_dir}/{workload}_{distribution}_{metric}_{genSaneFilename(setup)}')
+                gxTenantsStacked(metric, setup, results_per_worker[metric], f'{results_dir}/{workload}_{distribution}_{metric}_{genSaneFilename(setup)}', distribution)
             gxGlobal(metric, results[metric], f'{results_dir}/{workload}_{distribution}_{metric}_global')

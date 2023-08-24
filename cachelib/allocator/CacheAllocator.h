@@ -85,6 +85,8 @@
 #include "cachelib/common/Utils.h"
 #include "cachelib/shm/ShmManager.h"
 
+#include <shards/shards.hpp>
+
 namespace facebook {
 namespace cachelib {
 
@@ -539,6 +541,7 @@ class CacheAllocator : public CacheBase,
   // @return          the read handle for the item or a handle to nullptr if the
   //                  key does not exist.
   ReadHandle find(Key key);
+  ReadHandle find(Key key, PoolId pid);
 
   // Warning: this API is synchronous today with HybridCache. This means as
   //          opposed to find(), we will block on an item being read from
@@ -2077,6 +2080,8 @@ class CacheAllocator : public CacheBase,
   std::unique_ptr<MemoryMonitor> memMonitor_;
 
   // holpaca
+  std::unordered_map<PoolId, std::shared_ptr<Shards>> shards_;
+  std::mutex shardsLock_;
   std::unique_ptr<holpaca::data_plane::Stage> holpaca_stage_;
   std::unique_ptr<Tracker> tracker_;
 
@@ -2190,6 +2195,10 @@ class CacheAllocator : public CacheBase,
       }()};
       auto pool_stats = getPoolStats(id);
       std::map<uint64_t, uint32_t> tailHits;
+      std::unordered_map<uint32_t, double> mrc;
+      if (auto x = shards_.find(id); x != shards_.end()) {
+        mrc = x->second->mrc();
+      } 
       for (auto const& [cid, cs] : pool_stats.cacheStats) {
         tailHits[cid] = cs.containerStat.numTailAccesses;
       }
@@ -2200,6 +2209,7 @@ class CacheAllocator : public CacheBase,
           0,
           pool_stats.numEvictions(),
           tailHits,
+          std::map<uint32_t, double>(mrc.begin(), mrc.end()),
           isActive};
     }
     return result;

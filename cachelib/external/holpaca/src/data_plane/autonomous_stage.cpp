@@ -18,12 +18,6 @@ namespace holpaca{
             }
             m_logger->flush_on(spdlog::level::debug);
             m_logger->set_level(spdlog::level::trace);
-            m_control_algorithms.push_back(
-                std::make_shared<NaiveControlAlgorithm>(
-                    cache,
-                    periodicity
-                )
-            );
             m_logger->info("Autonomous stage created");
         } 
     }

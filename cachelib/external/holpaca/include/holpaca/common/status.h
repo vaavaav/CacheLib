@@ -9,6 +9,7 @@ namespace holpaca::common {
         uint32_t lookups;
         uint64_t evictions;
         std::map<uint64_t, uint32_t> tailAccesses;
+        std::map<uint32_t, double> mrc;
         bool isActive;
     };
     

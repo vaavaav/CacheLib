@@ -34,6 +34,8 @@ find_dependency(folly )
 find_dependency(fizz )
 find_dependency(wangle)
 find_dependency(FBThrift)
+find_dependency(holpaca)
+find_dependency(shards)
 
 if (NOT TARGET cachelib)
 	include("${CACHELIB_CMAKE_DIR}/cachelib-targets.cmake")

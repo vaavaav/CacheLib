@@ -35,6 +35,9 @@ namespace holpaca::data_plane {
                         for(auto const& [cid, tailAccesses] : value.tailAccesses) {
                             (*ss.mutable_tailaccesses())[cid] = tailAccesses;
                         }
+                        for(auto const& [cs, mr] : value.mrc) {
+                            (*ss.mutable_mrc())[cs] = mr;
+                        }
                         ss.set_isactive(value.isActive);
                         (*response->mutable_subs())[id] = ss;
                     }
@@ -47,6 +50,9 @@ namespace holpaca::data_plane {
                         ss.set_lookups(status[id].lookups);
                         for(auto const& [cid, tailAccesses] : status[id].tailAccesses) {
                             (*ss.mutable_tailaccesses())[cid] = tailAccesses;
+                        }
+                        for(auto const& [cs, mr] : status[id].mrc) {
+                            (*ss.mutable_mrc())[cs] = mr;
                         }
                         ss.set_isactive(status[id].isActive);
                         (*response->mutable_subs())[id] = ss;

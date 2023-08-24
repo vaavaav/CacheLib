@@ -61,7 +61,7 @@ NAME: the dependency to build supported values are:
   googlelog, googleflags, googletest,
   fmt, sparsemap,
   folly, fizz, wangle, fbthrift,
-  holpaca
+  holpaca, shards
   cachelib
 
   "
@@ -241,6 +241,10 @@ case "$1" in
 
   holpaca)
     NAME=holpaca
+    SRCDIR=cachelib/external/$NAME
+    ;;
+  shards)
+    NAME=SHARDS-cpp
     SRCDIR=cachelib/external/$NAME
     ;;
 

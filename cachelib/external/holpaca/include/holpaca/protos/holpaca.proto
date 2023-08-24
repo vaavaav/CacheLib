@@ -13,6 +13,9 @@ message Empty {}
 message Size {
     uint64 value = 1;
 }
+message MRC {
+    map<uint64, double> mrc = 1;
+}
 
 
 message StatusRequest {
@@ -41,7 +44,8 @@ message SubStatus {
     uint32 lookups = 4;
     uint64 evictions = 5;
     map<uint64, uint32> tailAccesses = 6;
-    bool isActive = 7;
+    map<uint32, double> mrc = 7;
+    bool isActive = 8;
 }
 
 message Status {

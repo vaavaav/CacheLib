@@ -21,9 +21,8 @@ namespace cachelib {
 
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::CacheAllocator(Config config)
-    : CacheAllocator(InitMemType::kNone, config) 
-     {
-  { }
+    : CacheAllocator(InitMemType::kNone, config) {
+  {}
   initCommon(false);
 }
 
@@ -96,7 +95,8 @@ CacheAllocator<CacheTrait>::CacheAllocator(
       // nvmCacheState's current time in sync
       nvmCacheState_{cacheInstanceCreationTime_, config_.cacheDir,
                      config_.isNvmCacheEncryptionEnabled(),
-                     config_.isNvmCacheTruncateAllocSizeEnabled()} {}
+                     config_.isNvmCacheTruncateAllocSizeEnabled()} {
+}
 
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::~CacheAllocator() {
@@ -241,7 +241,8 @@ void CacheAllocator<CacheTrait>::initWorkers() {
                           config_.ccacheOptimizeStepSizePercent);
   }
   if (config_.enable_holpaca) {
-    startNewHolpacaStage<holpaca::data_plane::StageServer>(config_.holpaca_periodicity);
+    startNewHolpacaStage<holpaca::data_plane::StageServer>(
+        config_.holpaca_periodicity);
   }
   if (config_.enable_tracker) {
     startNewTracker(config_.tracker_periodicity, config_.tracker_path);
@@ -1759,6 +1760,17 @@ CacheAllocator<CacheTrait>::find(typename Item::Key key) {
 }
 
 template <typename CacheTrait>
+typename CacheAllocator<CacheTrait>::ReadHandle
+CacheAllocator<CacheTrait>::find(typename Item::Key key, PoolId pid) {
+  auto key_ = std::string(key);
+  {
+    std::lock_guard<std::mutex> l(shardsLock_);
+    shards_[pid]->feedKey(key_, key_.size());
+  }
+  return findImpl(key, AccessMode::kRead);
+}
+
+template <typename CacheTrait>
 void CacheAllocator<CacheTrait>::markUseful(const ReadHandle& handle,
                                             AccessMode mode) {
   if (!handle) {
@@ -2046,6 +2058,10 @@ PoolId CacheAllocator<CacheTrait>::addPool(
     bool ensureProvisionable) {
   folly::SharedMutex::WriteHolder w(poolsResizeAndRebalanceLock_);
   auto pid = allocator_->addPool(name, size, allocSizes, ensureProvisionable);
+  {
+    std::lock_guard<std::mutex> lg(shardsLock_);
+    shards_[pid] = std::make_shared<FixedSizeShards>((1<<24)/1000, 1<<24, 8000, 100);
+  }
   createMMContainers(pid, std::move(config));
   setRebalanceStrategy(pid, std::move(rebalanceStrategy));
   setResizeStrategy(pid, std::move(resizeStrategy));
@@ -3609,24 +3625,22 @@ bool CacheAllocator<CacheTrait>::startNewReaper(
 
 template <typename CacheTrait>
 template <typename T, typename... Args>
-bool CacheAllocator<CacheTrait>::startNewHolpacaStage( 
-  std::chrono::milliseconds interval,
-  Args&&... args
-) {
+bool CacheAllocator<CacheTrait>::startNewHolpacaStage(
+    std::chrono::milliseconds interval, Args&&... args) {
   if (!stopHolpacaStage()) {
     return false;
   }
 
-
   bool ret = true;
   std::lock_guard<std::mutex> l(workersMutex_);
   try {
-    holpaca_stage_ = std::make_unique<T>(this, interval, std::forward<Args>(args)...);
+    holpaca_stage_ =
+        std::make_unique<T>(this, interval, std::forward<Args>(args)...);
   } catch (...) {
-    XLOGF(ERR, "Couldn't start worker '{}', interval: {} milliseconds", "Holpaca",
-          interval.count());
+    XLOGF(ERR, "Couldn't start worker '{}', interval: {} milliseconds",
+          "Holpaca", interval.count());
     ret = false;
-  } 
+  }
   if (ret) {
     XLOGF(DBG1, "Started worker '{}'", "Holpaca");
   }
@@ -3634,10 +3648,8 @@ bool CacheAllocator<CacheTrait>::startNewHolpacaStage(
 }
 
 template <typename CacheTrait>
-bool CacheAllocator<CacheTrait>::startNewTracker( 
-  std::chrono::milliseconds interval,
-  std::string pathToFile
-) {
+bool CacheAllocator<CacheTrait>::startNewTracker(
+    std::chrono::milliseconds interval, std::string pathToFile) {
   if (!startNewWorker("Tracker", tracker_, interval, pathToFile)) {
     return false;
   }
@@ -3672,7 +3684,8 @@ bool CacheAllocator<CacheTrait>::stopReaper(std::chrono::seconds timeout) {
 }
 
 template <typename CacheTrait>
-bool CacheAllocator<CacheTrait>::stopHolpacaStage(std::chrono::seconds timeout) {
+bool CacheAllocator<CacheTrait>::stopHolpacaStage(
+    std::chrono::seconds timeout) {
   std::lock_guard<std::mutex> l(workersMutex_);
   if (!holpaca_stage_) {
     return true;
@@ -3680,12 +3693,12 @@ bool CacheAllocator<CacheTrait>::stopHolpacaStage(std::chrono::seconds timeout) 
   holpaca_stage_.reset();
   XLOGF(DBG1, "Stopped worker '{}'", "Holpaca");
   return true;
-} 
+}
 
 template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::stopTracker(std::chrono::seconds timeout) {
   return stopWorker("Tracker", tracker_, timeout);
-} 
+}
 
 template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::cleanupStrayShmSegments(

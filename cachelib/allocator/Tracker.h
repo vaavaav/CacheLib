@@ -1,7 +1,7 @@
 #pragma once
 
-#include <fstream>
 #include <atomic>
+#include <fstream>
 #include <set>
 
 #include "cachelib/allocator/Cache.h"
@@ -12,7 +12,7 @@
 namespace facebook {
 namespace cachelib {
 
-class Tracker: public PeriodicWorker {
+class Tracker : public PeriodicWorker {
  public:
   // @param cache                 the cache interace
   Tracker(CacheBase& cache, std::string pathToFile) : cache_(cache) {
@@ -21,21 +21,24 @@ class Tracker: public PeriodicWorker {
 
   ~Tracker() override {
     log.close();
-    stop(std::chrono::milliseconds(0));    
+    stop(std::chrono::milliseconds(0));
   }
+
  private:
   CacheBase& cache_;
   std::ofstream log;
-  long time {0};
+  long time{0};
 
   void work() override final {
     auto pools = cache_.getActivePools();
-    std::set<PoolId> pids (pools.begin(), pools.end());
+    std::set<PoolId> pids(pools.begin(), pools.end());
     log << fmt::format("{}: ", time++);
     for (auto const& id : cache_.getPoolIds()) {
       auto pool_stats = cache_.getPoolStats(id);
       bool active = pids.find(id) != pids.end();
-      log << fmt::format("pool-{} {{ usedMem={} freeMem={} }} ", id, active*pool_stats.poolSize, active*pool_stats.freeMemoryBytes());
+      log << fmt::format("pool-{} {{ usedMem={} freeMem={} }} ", id,
+                         active * pool_stats.poolSize,
+                         active * pool_stats.freeMemoryBytes());
     }
     log << std::endl;
   }

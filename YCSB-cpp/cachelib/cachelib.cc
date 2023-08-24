@@ -211,7 +211,7 @@ DB::Status CacheLib::Read(const std::string& table,
                           const std::string& key,
                           const std::vector<std::string>* fields,
                           std::vector<Field>& result) {
-  auto handle = cache_->find(key);
+  auto handle = cache_->find(key, pools_[threadId_]);
 
   if (handle == nullptr) {
     if (RDRead(table, key, fields, result) == kOK) {
@@ -460,14 +460,14 @@ void CacheLib::RDGetOptions(
     }
 
     rocksdb::BlockBasedTableOptions table_options;
-    size_t cache_size = 0;
+    table_options.no_block_cache = true;
     int bloom_bits = std::stoul(
         props_->GetProperty(PROP_BLOOM_BITS, PROP_BLOOM_BITS_DEFAULT));
     if (bloom_bits > 0) {
       table_options.filter_policy.reset(
           rocksdb::NewBloomFilterPolicy(bloom_bits));
     }
-    opt->table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
+    //opt->table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     if (props_->GetProperty(PROP_INCREASE_PARALLELISM,
                             PROP_INCREASE_PARALLELISM_DEFAULT) == "true") {

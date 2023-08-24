@@ -67,7 +67,6 @@ if (BIND_CACHELIB)
     target_sources(ycsb PRIVATE ${YCSB_CACHELIB_SRC})
 
     find_package(cachelib CONFIG REQUIRED)
-    find_package(holpaca CONFIG REQUIRED)
     target_link_libraries(ycsb PRIVATE cachelib)
 else()
     message(STATUS "BIND_CACHELIB - OFF")

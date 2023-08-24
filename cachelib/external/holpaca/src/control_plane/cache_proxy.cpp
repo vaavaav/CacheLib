@@ -43,11 +43,15 @@ holpaca::common::Status CacheProxy::getStatus() {
 
   for (auto const& [id, value] : response.subs()) {
     std::map<uint64_t, uint32_t> tailAccesses;
+    std::map<uint32_t, double> mrc;
     for (auto const& [cid, cs] : value.tailaccesses()) {
       tailAccesses[cid] = cs;
     }
+    for (auto const& [cs, mr] : value.mrc()) {
+      mrc[cs] = mr;
+    }
     result[id] = {value.usedmem(), value.freemem(), value.hits(),
-                  value.lookups(), value.evictions(), tailAccesses, value.isactive()};
+                  value.lookups(), value.evictions(), tailAccesses, mrc,value.isactive()};
   }
 
   return result;

@@ -105,6 +105,8 @@ target_link_libraries( holpaca_proto
 # ---------------------------------------------------------------------------- #
 # > Build Controller
 
+find_package(GSL REQUIRED)
+
 add_executable(controller
   include/holpaca/control_plane
   include/holpaca/common/status.h
@@ -130,6 +132,7 @@ target_link_libraries(controller
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
+  GSL::gsl
 )
 
 # ---------------------------------------------------------------------------- #

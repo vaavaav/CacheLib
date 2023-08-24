@@ -65,6 +65,7 @@ target_link_libraries(cachelib_allocator PUBLIC
   cachelib_common
   cachelib_shm
   holpaca::holpaca
+  shards::shards
   )
 
 if ((CMAKE_SYSTEM_NAME STREQUAL Linux) AND
