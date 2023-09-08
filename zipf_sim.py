@@ -25,7 +25,7 @@ def printAccZipf(
         f"{round(percentage_of_the_ranks*100,2)}% of the dataset is accessed by {percentage_of_the_requests}% of the requests"
     )
 
-zipfian_coeficient = 0.99
+zipfian_coeficient = 0.8
 number_of_ranks = 10_000
 
 printAccZipf(0.01,  zipfian_coeficient, number_of_ranks)

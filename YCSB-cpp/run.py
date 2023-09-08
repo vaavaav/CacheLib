@@ -28,11 +28,11 @@ db = f'{project_source_dir}/db'
 db_backup = f'{project_source_dir}/db_backup'
 
 workloads_dir = f'{workspace}/workloads'
-workloads = ['workloada','workloadc']
+workloads = ['workloadc','workloada']
 
 # Benchmark settings
 ycsb = {
-    'maxexecutiontime' : 900,
+    'maxexecutiontime' : 300,
     'operationcount' : 1_000_000_000,
     'recordcount': 2_000_000,
     'cachelib.cachesize': 200_000_000, # in bytes
@@ -80,7 +80,7 @@ def getDistName(d):
     return 'uni' if d == 0 else f'z{str(d).replace(".","")}'
 
 distributions = {}
-maxTests = 20 
+maxTests = 15 
 while maxTests > 0:
     dist = random.sample([0]+zipfian_coeficients, threads)
     distName = '_'.join([getDistName(d) for d in dist])
@@ -104,7 +104,7 @@ while maxTests > 0:
 # ----
 # Setups
 setups = {}
-setups['Holpaca + SHARDS + SimAn'] = {
+setups['Cachelib + SHARDS + SimAn'] = {
     'cachelib.holpaca': 'on',
     **ycsb
 }
@@ -112,12 +112,12 @@ setups['CacheLib'] = {
     'cachelib.trail_hits_tracking': 'off',
     **ycsb
 }
-setups['CacheLib + Optimizer'] = {
-    'cachelib.pool_optimizer': 'on',
-    **ycsb
-}
+#setups['CacheLib + Optimizer'] = {
+#    'cachelib.pool_optimizer': 'on',
+#    **ycsb
+#}
 
-enableController = ['Holpaca + SHARDS + SimAn']
+enableController = ['Cachelib + SHARDS + SimAn']
 
 
 # ---- Utils
@@ -139,7 +139,7 @@ def runBenchmark(workload, settings, file, enableController : bool):
     if os.path.exists(db):
         shutil.rmtree(db)
     shutil.copytree(db_backup, db)
-    command = f'{executable_dir}/ycsb -run -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in settings.items()])}'
+    command = f'systemd-run --scope -p MemoryMax={settings["cachelib.cachesize"]+10_000_000} --user {executable_dir}/ycsb -run -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in settings.items()])}'
     f = open(file, 'w') 
     print('\tCleaning heap')
     subprocess.call([util_script, 'clean-heap'], stdout=subprocess.DEVNULL)
@@ -239,6 +239,8 @@ def gxTenantsStacked(metric, setup, data, figfile, distribution):
 
 def gxGlobal(metric, data, figfile):
     pd.DataFrame.from_dict(data, orient='index').transpose().plot(figsize=(15,7))
+    for i in phases[1:-1]:
+        pyplot.axvline(x=i-1, linestyle="--", color="black", linewidth=0.5)
     pyplot.legend(bbox_to_anchor=(1,0.5))
     pyplot.xlabel("time (s)")
     pyplot.ylabel(metric)

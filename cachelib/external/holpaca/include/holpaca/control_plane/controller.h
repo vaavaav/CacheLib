@@ -6,7 +6,7 @@
 #include <holpaca/config.h>
 #include <holpaca/control_algorithm/marginal_hits.h>
 #include <holpaca/control_algorithm/proportional_share.h>
-#include <holpaca/control_algorithm/miss_rate_min.h>
+#include <holpaca/control_algorithm/miss_rate_min_qos.h>
 #include <holpaca/control_plane/cache_proxy.h>
 #include <holpaca/data_plane/stage.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -43,7 +43,8 @@ class Controller {
     m_control_algorithms.push_back(
         // std::make_shared<ProportionalShare>(proxy, periodicity)
         std::thread{[this, periodicity]() {
-          MissRateMin msm(this->proxy);
+          //MissRateMin msm(this->proxy);
+          MissRateMin msm(this->proxy, std::unordered_map<pid_t, double>{{0, 0.6}});
           while (this->m_continue) {
             msm.run();
             std::this_thread::sleep_for(periodicity);
