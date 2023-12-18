@@ -45,7 +45,8 @@ message SubStatus {
     uint64 evictions = 5;
     map<uint64, uint32> tailAccesses = 6;
     map<uint32, double> mrc = 7;
-    bool isActive = 8;
+    uint32 meanObjectSize = 8;
+    bool isActive = 9;
 }
 
 message Status {

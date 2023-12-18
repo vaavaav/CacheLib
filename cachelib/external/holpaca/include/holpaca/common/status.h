@@ -10,6 +10,7 @@ namespace holpaca::common {
         uint64_t evictions;
         std::map<uint64_t, uint32_t> tailAccesses;
         std::map<uint32_t, double> mrc;
+        uint32_t meanObjectSize;
         bool isActive;
     };
     

@@ -51,7 +51,7 @@ holpaca::common::Status CacheProxy::getStatus() {
       mrc[cs] = mr;
     }
     result[id] = {value.usedmem(), value.freemem(), value.hits(),
-                  value.lookups(), value.evictions(), tailAccesses, mrc,value.isactive()};
+                  value.lookups(), value.evictions(), tailAccesses, mrc, value.meanobjectsize(), value.isactive()};
   }
 
   return result;

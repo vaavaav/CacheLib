@@ -4,10 +4,12 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <fstream>
-#include <iostream>
+#include <iterator>
+#include <numeric>
 #include <unordered_map>
 #include <unordered_set>
+
+#include "spline.h"
 extern "C" {
 #include <gsl/gsl_siman.h>
 };
@@ -16,210 +18,216 @@ using namespace holpaca::common;
 
 namespace holpaca::control_algorithm {
 
-#define OBJECT_SIZE 1000
-#define THRESHOLD 0.05
+#define MAX_DELTA 0.05
+#define MRC_MIN_SIZE 5
 
 struct Context {
-  double max{0};
-  std::vector<pid_t> pids{};
-  std::unordered_map<pid_t, std::vector<std::pair<uint32_t, double>>> mrcs{};
-  std::unordered_map<pid_t, double> sizes{};
-  std::unordered_map<pid_t, double> bestSizes{};
-
-  double estimate_mr(pid_t i) {
-    auto const& mrci = mrcs[i];
-    double const& size = sizes[i];
-    if (mrci.size() == 0) {
-      return bestSizes[i] / size;
-    }
-    if (size < mrci.front().first) {
-      return mrci.front().second * mrci.front().first / size;
-    }
-    for (std::size_t i = 0; (i + 1) < mrci.size(); i++) {
-      if (mrci[i].first <= size && size <= mrci[i + 1].first) {
-        double const d = mrci[i + 1].first - mrci[i].first;
-        double const r =
-            mrci[i].second * (1 - (size - mrci[i].first) / d) +
-            mrci[i + 1].second * (1 - (mrci[i + 1].first - size) / d);
-        return r;
-      }
-    }
-    return mrci.back().second * mrci.back().first / size;
-  }
+  double m_max{0};
+  struct PoolConfig {
+    double m_size{0};
+    double m_current_size{0};
+    double m_real_mr{0};
+    tk::spline m_mrc;
+    double inline getMR() const { return m_mrc(m_size); };
+  };
+  std::unordered_map<pid_t, PoolConfig> m_pool_configs{};
 };
 
 class MissRateMin {
   MissRateMin() = delete;
   Cache* cache = NULL;
   std::shared_ptr<spdlog::logger> m_logger;
-  std::ofstream mrc_log;
-
- public:
-  std::unordered_set<pid_t> inactive{};
-  std::vector<pid_t> active{};
+  std::unordered_set<pid_t> m_active{};
+  std::unordered_set<pid_t> m_inactive{};
   const gsl_rng_type* T;
   gsl_rng* r;
   Context ctx{};
-  double bestE{1000000};
 
+ public:
   void collect() {
     if (cache == NULL) {
       return;
     }
-    double max = cache->size() / static_cast<double>(OBJECT_SIZE);
-    ctx.max = max;
-    ctx.pids.clear();
-    ctx.mrcs.clear();
-    ctx.sizes.clear();
-
     m_logger->info("Collecting cache status");
 
-    auto statuses = cache->getStatus();
-    int nactive =
+    double const max = cache->size();
+    if (max == 0) {
+      return;
+    }
+
+    auto const& statuses = cache->getStatus();
+    int const number_of_active_pools =
         std::count_if(statuses.begin(), statuses.end(),
                       [](auto const& s) { return s.second.isActive; });
+    bool const pools_join_or_left =
+        std::any_of(statuses.begin(), statuses.end(), [&](auto const& s) {
+          return s.second.isActive ==
+                 (m_active.find(s.first) == m_active.end());
+        });
+    int const number_of_warming_pools = std::count_if(
+        statuses.begin(), statuses.end(), [&](auto const& s) -> bool {
+          return s.second.isActive && (s.second.mrc.size() < MRC_MIN_SIZE);
+        });
 
-    mrc_log << "{";
-    for (auto const& [pid, s] : statuses) {
-      if (s.isActive) {
-        mrc_log << "{" << pid << ",{";
-        ctx.pids.push_back(pid);
-        std::vector<uint32_t> keys;
-        keys.reserve(s.mrc.size());
-        for (auto it = s.mrc.begin(); it != s.mrc.end(); ++it) {
-          keys.push_back(it->first);
-        }
-        std::sort(keys.begin(), keys.end());
-        std::vector<std::pair<uint32_t, double>> mrc;
-        mrc.reserve(keys.size());
-        for (auto const& k : keys) {
-          auto const v = s.mrc.at(k);
-          m_logger->debug("{}:{},{}", pid, k, v);
-          mrc.push_back({k, v});
-          mrc_log << "{" << k << "," << v << "},";
-        }
-        ctx.mrcs[pid] = mrc;
-        mrc_log << "}},";
-        if (inactive.find(pid) != inactive.end()) {
-          inactive.erase(pid);
-        }
-      } else {
-        // preemtive enforce
-        if (inactive.find(pid) == inactive.end()) {
-            cache->resize(pid, 0);
-            inactive.insert(pid);
+    auto const default_size = max / number_of_active_pools;
+    ctx.m_max = max - number_of_warming_pools * default_size;
+    m_logger->debug("Cache max size: {} byte", max);
+    m_logger->debug("Default pool size: {} byte", default_size);
+    m_logger->debug("{} of {} active pools are warming up",
+                    number_of_warming_pools, number_of_active_pools);
+
+    // first I need to resize all inactive to 0 so that there is free available
+    // space for the active ones
+    for (auto const& [id, pool] : statuses) {
+      if (!pool.isActive) {
+        ctx.m_pool_configs.erase(id);
+        m_active.erase(id);
+        if (m_inactive.find(id) == m_inactive.end()) {
+          m_inactive.insert(id);
+          // preemptive enforce
+          cache->resize(id, 0);
         }
       }
     }
-    mrc_log << "}" << std::endl;
-    m_logger->debug("max={}", ctx.max);
-    bool changed = false;
-    for (auto const& pid : ctx.pids) {
-      if (std::find(active.begin(), active.end(), pid) == active.end()) {
-        changed = true;
-        break;
+    // if pools join or left do a preemptive resize (from the most decreased
+    // pool to the most increased one)
+    if (pools_join_or_left) {
+      std::vector<double> pools{};
+      std::unordered_map<pid_t, double> sizes{};
+      for (auto const& [id, pool] : statuses) {
+        if (pool.isActive) {
+          pools.push_back(id);
+          sizes[id] = pool.usedMem;
+        }
       }
-    }
-    for (auto const& pid : active) {
-      if (std::find(ctx.pids.begin(), ctx.pids.end(), pid) == ctx.pids.end()) {
-        changed = true;
-        break;
+      // sort pools by difference between current size and default size
+      std::sort(pools.begin(), pools.end(), [&](auto const& a, auto const& b) {
+        return sizes[a] > sizes[b];
+      });
+      for (auto const& id : pools) {
+        cache->resize(id, default_size);
       }
     }
 
-    if (changed) {
-      active = ctx.pids;
-      ctx.bestSizes.clear();
-      auto size = max / nactive;
-      for (auto const& pid : ctx.pids) {
-        // preemptive enforce
-        cache->resize(pid, size* OBJECT_SIZE);
-        ctx.bestSizes[pid] = size;
+    for (auto const& [id, pool] : statuses) {
+      m_logger->debug("pool #{}, mean object size={}", id, pool.meanObjectSize);
+      if (pool.isActive) {
+        m_active.insert(id);
+        m_inactive.erase(id);
+        if (pool.mrc.size() >= MRC_MIN_SIZE) {
+          if (pool.meanObjectSize == 0) {
+            ctx.m_max -= pool.usedMem;
+            ctx.m_pool_configs.erase(id);
+            continue;
+          }
+          Context::PoolConfig pc{};
+          pc.m_current_size = pools_join_or_left ? default_size : pool.usedMem;
+          pc.m_size = pc.m_current_size;
+          auto mrc = std::map<double, double>{pool.mrc.begin(), pool.mrc.end()};
+          mrc[0.0] = 1.0;
+          mrc[pool.usedMem / pool.meanObjectSize] =
+              1 - static_cast<double>(pool.hits) / pool.lookups;
+          std::vector<double> cache_sizes;
+          cache_sizes.reserve(pool.mrc.size());
+          std::vector<double> miss_rates;
+          miss_rates.reserve(pool.mrc.size());
+          for (auto const& [cs, mr] : mrc) {
+            cache_sizes.push_back(cs * pool.meanObjectSize);
+            miss_rates.push_back(mr);
+          }
+          pc.m_mrc = tk::spline(cache_sizes, miss_rates, tk::spline::cspline,
+                                true, tk::spline::second_deriv, 0.0);
+          ctx.m_pool_configs[id] = pc;
+        }
       }
-      ctx.sizes = ctx.bestSizes;
-      bestE = E1(&ctx);
-    } else {
-      ctx.sizes = ctx.bestSizes;
     }
   }
 
   void compute() {
-    if (cache == NULL || ctx.pids.size() == 0) {
+    if (cache == NULL || ctx.m_pool_configs.size() < 2) {
       return;
     }
-    m_logger->debug("computing for {} pools", ctx.pids.size());
+
+    for (auto const& [id, pc] : ctx.m_pool_configs) {
+      m_logger->debug("pool #{} (size: {}) (mr: {})", id, pc.m_size,
+                      pc.getMR());
+    }
+
+    m_logger->debug("Computing for {} pools", ctx.m_pool_configs.size());
     gsl_siman_params_t params = {
-        .n_tries = 20,
-        .iters_fixed_T = 100,
-        .step_size = 50.0,
+        .n_tries = 2000,
+        .iters_fixed_T = 300,
+        .step_size = 0.0, // not used
         .k = 1.0,
-        .t_initial = 5000.0,
+        .t_initial = 100,
         .mu_t = 1.003,
-        .t_min = 1.0e-2,
+        .t_min = 0.1,
     };
 
     gsl_siman_solve(r, &ctx, E1, S1, M1, NULL, NULL, NULL, NULL, (sizeof ctx),
                     params);
-    auto e = E1(&ctx);
-
-    if (e < bestE) {
-      bestE = e;
-      ctx.bestSizes = ctx.sizes;
-    }
   }
+
   void enforce() {
-    if (cache == NULL || ctx.pids.size() == 0) {
+    if (cache == NULL || ctx.m_pool_configs.size() < 2) {
       return;
     }
-    double mr{0};
-    for (auto& [id, size] : ctx.bestSizes) {
-      m_logger->debug("pid={} new size={}", id, size);
-      cache->resize(id, size * OBJECT_SIZE);
-      mr += ctx.estimate_mr(id);
+    std::vector<double> sizes_sorted_by_diff{};
+    for (auto const& [id, _] : ctx.m_pool_configs) {
+      sizes_sorted_by_diff.push_back(id);
     }
-    m_logger->debug("Energy={}", E1(&ctx));
+    std::sort(sizes_sorted_by_diff.begin(), sizes_sorted_by_diff.end(),
+              [&](auto const& a, auto const& b) {
+                return (ctx.m_pool_configs[a].m_size -
+                        ctx.m_pool_configs[a].m_current_size) <
+                       (ctx.m_pool_configs[b].m_size -
+                        ctx.m_pool_configs[b].m_current_size);
+              });
+    for (auto const& id : sizes_sorted_by_diff) {
+      auto const& pc = ctx.m_pool_configs[id];
+      if (pc.m_current_size != pc.m_size) {
+        m_logger->debug("pool #{}: {} -> {}", id, pc.m_current_size, pc.m_size);
+        cache->resize(id, pc.m_size);
+      }
+    }
   }
 
   static void S1(const gsl_rng* r, void* xp, double step_size) {
     auto x = ((Context*)xp);
-    for (auto const& id : x->pids) {
-      double u = gsl_rng_uniform(r);
-      x->sizes[id] += (u * 2 - 1) * step_size;
+    auto const n = gsl_rng_uniform_int(r, x->m_pool_configs.size());
+    auto m = gsl_rng_uniform_int(r, x->m_pool_configs.size());
+    while (n == m) {
+      m = gsl_rng_uniform_int(r, x->m_pool_configs.size());
     }
+    auto receiver = x->m_pool_configs.begin();
+    auto giver = x->m_pool_configs.begin();
+    std::advance(receiver, n);
+    std::advance(giver, m);
+
+    double const delta =
+        gsl_rng_uniform(r) *
+        std::min({(1 + MAX_DELTA) * receiver->second.m_current_size -
+                      receiver->second.m_size,
+                  giver->second.m_size -
+                      (1 - MAX_DELTA) * giver->second.m_current_size,
+                  x->m_max - receiver->second.m_size, giver->second.m_size});
+    if (delta <= 0) {
+      return;
+    }
+
+    receiver->second.m_size += delta;
+    giver->second.m_size -= delta;
   }
+
   /* now some functions to test in one dimension */
   static double E1(void* xp) {
-    auto x = *(Context*)xp;
-    double tsize{0};
-    double mr{0};
-    for (auto const& [id, size] : x.sizes) {
-      if (size <= 0 || size > x.max) {
-        return 100000000;
-      }
-      tsize += size;
-    }
-    if (tsize > x.max) {
-      return 100000000;
-    }
-    for (auto const& id : x.pids) {
-      mr += x.estimate_mr(id);
-    }
-    return mr;
+    auto x = (Context*)xp;
+    return std::accumulate(
+        x->m_pool_configs.cbegin(), x->m_pool_configs.cend(), 0.0,
+        [&](auto const& a, auto const& b) { return a + b.second.getMR(); });
   }
 
-  static double M1(void* xp, void* yp) {
-    auto x = *((Context*)xp);
-    auto y = *((Context*)yp);
-    if (xp == NULL || yp == NULL) {
-      return 0;
-    }
-    double s{0};
-    for (auto const& id : x.pids) {
-      s += fabs(x.sizes[id] - y.sizes[id]);
-    }
-
-    return s;
-  }
+  static double M1(void* xp, void* yp) { return fabs(E1(xp) - E1(yp)); }
 
  public:
   void run() {
@@ -239,14 +247,12 @@ class MissRateMin {
     m_logger->set_level(spdlog::level::debug);
     m_logger->info("Initialization");
     gsl_rng_env_setup();
-    T = gsl_rng_default;
-    r = gsl_rng_alloc(T);
-    mrc_log.open("/tmp/mrc.log");
+    r = gsl_rng_alloc(gsl_rng_default);
   }
+
   ~MissRateMin() {
     m_logger->info("Destructing MissRateMin");
     gsl_rng_free(r);
-    mrc_log.close();
   }
 };
 } // namespace holpaca::control_algorithm

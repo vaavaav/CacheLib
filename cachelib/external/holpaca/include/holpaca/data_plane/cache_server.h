@@ -32,6 +32,7 @@ namespace holpaca::data_plane {
                         ss.set_hits(value.hits);
                         ss.set_lookups(value.lookups);
                         ss.set_evictions(value.evictions);
+                        ss.set_meanobjectsize(value.meanObjectSize);
                         for(auto const& [cid, tailAccesses] : value.tailAccesses) {
                             (*ss.mutable_tailaccesses())[cid] = tailAccesses;
                         }
@@ -48,6 +49,7 @@ namespace holpaca::data_plane {
                         ss.set_freemem(status[id].freeMem);
                         ss.set_hits(status[id].hits);
                         ss.set_lookups(status[id].lookups);
+                        ss.set_meanobjectsize(status[id].meanObjectSize);
                         for(auto const& [cid, tailAccesses] : status[id].tailAccesses) {
                             (*ss.mutable_tailaccesses())[cid] = tailAccesses;
                         }
