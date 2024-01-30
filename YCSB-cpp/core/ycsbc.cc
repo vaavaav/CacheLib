@@ -34,7 +34,7 @@ void ParseCommandLine(int argc,
 
 void StatusThread(std::vector<ycsbc::Measurements*>* measurements,
                   CountDownLatch* latch,
-                  int interval) {
+                  long interval) {
   using namespace std::chrono;
   time_point<system_clock> start = system_clock::now();
   bool done = false;
@@ -46,7 +46,7 @@ void StatusThread(std::vector<ycsbc::Measurements*>* measurements,
     std::cout << std::put_time(std::localtime(&now_c), "%F %T") << ' '
               << static_cast<long long>(elapsed_time.count()) << " sec: ";
 
-    for (int i = 0; i < measurements->size(); i++) {
+    for (long i = 0; i < measurements->size(); i++) {
       std::cout << "worker-" + std::to_string(i) + " { " +
                        measurements->at(i)->GetStatusMsg() + " } ";
     }
@@ -102,8 +102,8 @@ int main(const int argc, const char* argv[]) {
 
   // load phase
   if (do_load) {
-    const int total_ops =
-        stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
+    const long total_ops =
+        stol(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
 
     CountDownLatch latch(num_threads);
     ycsbc::utils::Timer<double> timer;
@@ -114,9 +114,9 @@ int main(const int argc, const char* argv[]) {
       status_future = std::async(std::launch::async, StatusThread,
                                  &measurements, &latch, status_interval);
     }
-    std::vector<std::future<int>> client_threads;
+    std::vector<std::future<long>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
-      int thread_ops = total_ops / num_threads;
+      long thread_ops = total_ops / num_threads;
       if (i < total_ops % num_threads) {
         thread_ops++;
       }
@@ -126,7 +126,7 @@ int main(const int argc, const char* argv[]) {
     }
     assert((int)client_threads.size() == num_threads);
 
-    int sum = 0;
+    long sum = 0;
     for (auto& n : client_threads) {
       assert(n.valid());
       n.wait();
@@ -148,8 +148,8 @@ int main(const int argc, const char* argv[]) {
 
   // transaction phase
   if (do_transaction) {
-    const int total_ops =
-        stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
+    const long total_ops =
+        stol(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
 
     CountDownLatch latch(num_threads);
     ycsbc::utils::Timer<double> timer;
@@ -160,9 +160,13 @@ int main(const int argc, const char* argv[]) {
       status_future = std::async(std::launch::async, StatusThread,
                                  &measurements, &latch, status_interval);
     }
-    std::vector<std::future<int>> client_threads;
+    std::vector<std::future<long>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
-      int thread_ops = total_ops / num_threads;
+      long thread_ops = stol(props.GetProperty(
+          ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY + "." +
+              std::to_string(i),
+          props.GetProperty(ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY,
+                            "0")));
       std::chrono::seconds maxexecutiontime = std::chrono::seconds(
           stol(props.GetProperty("maxexecutiontime." + std::to_string(i),
                                  props.GetProperty("maxexecutiontime", "0"))));
@@ -179,7 +183,7 @@ int main(const int argc, const char* argv[]) {
     }
     assert((int)client_threads.size() == num_threads);
 
-    int sum = 0;
+    long sum = 0;
     for (auto& n : client_threads) {
       assert(n.valid());
       sum += n.get();

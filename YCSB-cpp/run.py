@@ -3,12 +3,10 @@
 import os
 import signal
 import subprocess
-import re
-import random
-import pandas as pd
-import numpy as np
 import shutil
-from matplotlib import pyplot
+from datetime import datetime
+import json
+from pathlib import Path
 
 # Configs
 
@@ -19,8 +17,7 @@ executable_dir = f'{workspace}/build'
 scripts_dir = '.'
 util_script = f'{scripts_dir}/utils.sh'
 
-results_dir = f'{workspace}/profiling_results'
-zipfian_coeficients = [0.99, 0.4, 0.6, 0.8, 1.2, 1.4]
+results_dir = f'{workspace}/profiling_{datetime.now().strftime("%m-%d-%H-%M-%S")}'
 threads = 4
 runs = 1
 load = True
@@ -28,18 +25,18 @@ db = f'{project_source_dir}/db'
 db_backup = f'{project_source_dir}/db_backup'
 
 workloads_dir = f'{workspace}/workloads'
-workloads = ['workloadc','workloada']
+workloads = ['workloadc']
 
 # Benchmark settings
 ycsb = {
-    'maxexecutiontime' : 300,
-    'operationcount' : 1_000_000_000,
-    'recordcount': 2_000_000,
-    'cachelib.cachesize': 200_000_000, # in bytes
+    'sleepafterload' : 60,
+    'operationcount' : 100_000_000,
+    'recordcount': 4_000_000,
+    'cachelib.cachesize': 400_000_000, # in bytes
     'status.interval': 1,
     'readallfields': 'false',
     'fieldcount' : 1,
-    'fieldlength': 110_6,
+    'fieldlength': 1106,
     'cachelib.pool_resizer' : 'on',
     'cachelib.tail_hits_tracking': 'on',
     'rocksdb.dbname': db,
@@ -51,266 +48,107 @@ ycsb = {
     'rocksdb.max_background_compactions': 3,
     'rocksdb.use_direct_reads': 'true',
     'rocksdb.use_direct_io_for_flush_compaction': 'true',
-    'threadcount': f'{threads}',
-    'insertorder': 'nothashed'
+    'threadcount': threads,
+    'insertorder': 'nothashed',
+    'requestdistribution.0' : 'uniform',
+    'requestdistribution.1' : 'zipfian',
+    'zipfian_const.1' : '0.99', 
+    'requestdistribution.2' : 'zipfian',
+    'zipfian_const.2' : '0.7',
+    'requestdistribution.3' : 'zipfian',
+    'zipfian_const.3' : '0.6',
 }
 # Proportional Share
 priorities = [1, 1, 1, 1]
-phases = []
 fraction_size = int(ycsb['recordcount'] / sum(priorities))
-timePerPhase = ycsb['maxexecutiontime'] // (threads*2 - 1)
 start = 0
 end = 0 
 for worker in range(threads):
     end += priorities[worker]
-    ycsb[f'sleepafterload.{worker}'] = worker* timePerPhase 
-    ycsb[f'maxexecutiontime.{worker}'] = ycsb['maxexecutiontime'] - 2*ycsb[f'sleepafterload.{worker}']
-    phases.append(ycsb[f'sleepafterload.{worker}'])
     ycsb[f'insertstart.{worker}'] = start*fraction_size
     ycsb[f'request_key_domain_start.{worker}'] = start*fraction_size
     ycsb[f'request_key_domain_end.{worker}'] = end*fraction_size-1
+    ycsb[f'operationcount.{worker}'] = priorities[worker]*(ycsb['operationcount'] // sum(priorities))
+    ycsb[f'sleepafterload.{worker}'] = worker*ycsb['sleepafterload']
     start = end
 ycsb[f'request_key_domain_end.{threads-1}'] += ycsb['recordcount'] - fraction_size*sum(priorities)
-for worker in reversed(range(threads)):
-    phases.append(phases[worker]+ycsb[f'maxexecutiontime.{worker}'])
 
-# ----
-# Distributions
-def getDistName(d):
-    return 'uni' if d == 0 else f'z{str(d).replace(".","")}'
 
-distributions = {}
-maxTests = 15 
-while maxTests > 0:
-    dist = random.sample([0]+zipfian_coeficients, threads)
-    distName = '_'.join([getDistName(d) for d in dist])
-    if distName in distributions:
-        continue
-    res = {}
-    for i in range(0,threads):
-        if dist[i] == 0:
-            res[f'requestdistribution.{i}'] = 'uniform'
-        else:
-            res[f'requestdistribution.{i}'] = 'zipfian'
-            res[f'zipfian_const.{i}'] = dist[i]
-    distributions[distName] = res
-    maxTests -= 1
-
-#for i in zipfian_coeficients:
-#    distributions[f'zipfian_{str(i).replace(".","_")}'] = {
-#        'requestdistribution': 'zipfian',
-#        'zipfian_const': i,
-#    }
-# ----
-# Setups
-setups = {}
-setups['Cachelib + SHARDS + SimAn'] = {
-    'cachelib.holpaca': 'on',
-    **ycsb
-}
-setups['CacheLib'] = {
+load_setup = {
     'cachelib.trail_hits_tracking': 'off',
-    **ycsb
+    **ycsb   
 }
-#setups['CacheLib + Optimizer'] = {
-#    'cachelib.pool_optimizer': 'on',
-#    **ycsb
-#}
-
-enableController = ['Cachelib + SHARDS + SimAn']
-
-
-# ---- Utils
-
-def genSaneFilename(raw):
-    keepcharacters = ('.','_')
-    return "".join(c for c in raw if c.isalnum() or c in keepcharacters).rstrip()
+setups = {
+    'CacheLib' : {
+        'runs' : runs,
+        'enableController' : False,
+        'result_dir': f'{results_dir}/cachelib',
+        'ycsb_config' : ycsb
+    },
+    'CacheLib-Optimizer' : {
+        'runs' : runs,
+        'enableController' : False,
+        'result_dir' : f'{results_dir}/cachelib_optimizer',
+        'ycsb_config' : {
+            'cachelib.pool_optimizer': 'on',
+            **ycsb
+        },
+    },
+    'CacheLib-Holpaca' : {
+        'runs' : runs,
+        'enableController' : True,
+        'result_dir': f'{results_dir}/cachelib_holpaca',
+        'ycsb_config' : {
+            'cachelib.holpaca': 'on',
+            **ycsb
+        }
+    },
+}
 
 def loadDB(workload, settings):
-    settings['rocksdb.dbname'] = f'{project_source_dir}/db_backup'
+    settings['rocksdb.dbname'] = db_backup
     settings['rocksdb.destroy'] = 'true'
-    command = f'{executable_dir}/ycsb -load -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in settings.items()])}'
+    command = f'{executable_dir}/ycsb -load -db cachelib -P {workloads_dir}/{workload} -s -threads {settings["threadcount"]} {" ".join([f"-p {k}={v}" for k,v in settings.items()])}'
     print(f'[LOAD] Running: {command}')
     subprocess.run(command, shell=True)
     print('[LOAD] Done')
 
-def runBenchmark(workload, settings, file, enableController : bool):
+def runBenchmark(workload, settings, output_file):
     print('\tLoading db backup')
     if os.path.exists(db):
         shutil.rmtree(db)
     shutil.copytree(db_backup, db)
-    command = f'systemd-run --scope -p MemoryMax={settings["cachelib.cachesize"]+10_000_000} --user {executable_dir}/ycsb -run -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in settings.items()])}'
-    f = open(file, 'w') 
+    ycsb_settings = settings['ycsb_config']
+    command = f'systemd-run --scope -p MemoryMax={ycsb_settings["cachelib.cachesize"]+20_000_000} --user {executable_dir}/ycsb -run -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in ycsb_settings.items()])}'
     print('\tCleaning heap')
     subprocess.call([util_script, 'clean-heap'], stdout=subprocess.DEVNULL)
-    if enableController:
+    controller_pid = None
+    if settings['enableController']:
         print('\tStarting controller')
-        controller = subprocess.Popen(f"{project_source_dir}/../build-holpaca/bin/controller", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid) 
-        print(f'\tRunning: {command}')
-        subprocess.run(command, shell=True, text=True, stdout=f)
+        controller_pid = subprocess.Popen(f"{project_source_dir}/../build-holpaca/bin/controller 1000 hit_ratio_maximization", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid).pid
+    print(f'\tRunning: {command}')
+    subprocess.run(command, shell=True, text=True, stdout=output_file)
+    if controller_pid is not None:
         print('\tKilling controller')
-        os.killpg(os.getpgid(controller.pid), signal.SIGTERM)
-    else:
-        print(f'\tRunning: {command}')
-        subprocess.run(command, shell=True, text=True, stdout=f)
-    f.close()
-
-# ---- Metrics
-def getThroughput(data):
-    results_per_thread = [[] for _ in range(threads)] 
-    for worker in range(threads):
-        accum = [int(x) for x in re.findall(rf'worker-{worker} {{ (\d+) operations;', data)]
-        results_per_thread[worker].append(accum[0])
-        results_per_thread[worker][1:] = [accum[i] - accum[i-1] for i in range(1,len(accum))]
-    return {
-        'workers': results_per_thread,
-        'global': [np.sum(r) for r in zip(*results_per_thread)]
-        }
+        os.killpg(os.getpgid(controller_pid), signal.SIGTERM)
 
 
-def getUsedMem(data):
-    results_per_thread = [[] for _ in range(threads)] 
-    for pool in range(threads):
-        results_per_thread[pool] = [int(x) for x in re.findall(rf'pool-{pool} {{ usedMem=(\d+)', data)]
-    return {
-        'workers': results_per_thread,
-        'global': [np.sum(r) for r in zip(*results_per_thread)]
-        }
+os.mkdir(results_dir)
 
-def getHitRate(data):
-    hits = [[0] for _ in range(threads)]
-    misses = [[0] for _ in range(threads)]
-    for string in data.split('\n')[:-4]:
-        for worker in range(threads):
-            if match := re.search(rf'worker-{worker} {{[^{{}}]*READ: Count=(\d+)', string):
-                hits[worker].append(int(match.group(1)))
-            else:
-                hits[worker].append(0)
-            if match := re.search(rf'worker-{worker} {{[^{{}}]*READ-FAILED: Count=(\d+)', string):
-                misses[worker].append(int(match.group(1)))
-            else:
-                misses[worker].append(0)
-    hits = [[f-i for i,f in zip(hits[i], hits[i][1:]) ] for i in range(threads)]
-    misses = [[f-i for i,f in zip(misses[i], misses[i][1:]) ] for i in range(threads)]
-    return {
-        'workers': [[h/(m+h) if (m+h) else 0 for h,m in zip(hits[i],misses[i])] for i in range(threads)], 
-        'global': [h/(m+h) if (m+h) else 0 for h,m in zip([np.sum(r) for r in zip(*hits)], [np.sum(r) for r in zip(*misses)])]
-        }
-
-
-metrics = { 
-    'throughput': getThroughput, 
-    'hitrate': getHitRate, 
-    'usedmem': getUsedMem
-}
-# ---- Graphic generation
-# data is dict like: worker->setup->values
-
-def gxTenants(metric, data, figfile):
-    fig, axes = pyplot.subplots(nrows=threads, ncols=1)
-    fig.tight_layout(pad=0.5)
-    for worker in range(threads):
-        avg = { s:(round(float(np.mean(data[worker][s])),3),round(float(np.std(data[worker][s])),3)) for s in setups}
-        pd.DataFrame.from_dict(data[worker], orient='index').transpose().plot(ax=axes[worker], figsize=(15, 25))
-        axes[worker].set(xlabel="time (s)", ylabel=metric)
-        axes[worker].text(0.5,-0.2,"       ".join([f'{s} ~ {v})' for s,v in avg.items()]),ha="center",transform=axes[worker].transAxes)
-    pyplot.savefig(figfile,bbox_inches='tight')
-    pyplot.close('all')
-
-def gxTenantsStacked(metric, setup, data, figfile, distribution):
-    global phases
-    df = pd.DataFrame([data[i][setup] for i in range(threads)]).transpose()
-    for i in phases[1:-1]:
-        pyplot.axvline(x=i-1, linestyle="--", color="black", linewidth=0.5)
-    x = 0
-    for i,j in zip(phases,phases[1:]):
-        pyplot.figtext(0.2,-0.1-x*0.05, f'{"{:>3}".format(i)}-{"{:<3}".format(j-1)}: {("{:12.2f} "*threads).format(*[df[t][i:j-1].mean() for t in range(threads)])}', fontfamily='monospace')
-        x += 1
-    pyplot.stackplot(df.index, df.values.T, labels=distribution.split('_'))
-    pyplot.title(f'{setup} - accumulated {metric}')
-    pyplot.xlabel("time (s)")
-    pyplot.ylabel(metric)
-    pyplot.legend(bbox_to_anchor=(1,0.5))
-    pyplot.savefig(figfile,bbox_inches='tight')
-    pyplot.close()
-
-
-# data is dict like: setup->values
-
-def gxGlobal(metric, data, figfile):
-    pd.DataFrame.from_dict(data, orient='index').transpose().plot(figsize=(15,7))
-    for i in phases[1:-1]:
-        pyplot.axvline(x=i-1, linestyle="--", color="black", linewidth=0.5)
-    pyplot.legend(bbox_to_anchor=(1,0.5))
-    pyplot.xlabel("time (s)")
-    pyplot.ylabel(metric)
-    avg = { s:(round(float(np.mean(data[s])),3),round(float(np.std(data[setup])),3)) for s in setups}
-    pyplot.figtext(0.5,1,"       ".join([f'{s} ~ {v}' for s,v in avg.items()]), ha="center")
-    pyplot.savefig(figfile,bbox_inches='tight')
-    pyplot.close()
-
-# -- 
-
-for f in os.listdir(results_dir):
-    os.remove(f'{results_dir}/{f}')
-
-print('Printing benchmark details')
-report = open(f'{results_dir}/info.txt', 'wt')
-report.write(f'''
-threads: {threads} 
-runs: {runs} 
-load: {load}
-zipfian coeficients : {zipfian_coeficients}
-''')
-report.write('---\n')
-report.write("\n".join(f"{k}: {v}" for k, v in distributions.items()))
-report.write('\n---\n')
-report.write("\n".join(f"{k}: {v}" for k, v in ycsb.items()))
+report = open(f'{results_dir}/config.json', 'wt')
+report.write(json.dumps(setups, indent=2))
 report.close()
 
 os.system('killall -9 controller') # Kill all controller instances to avoid coordination issues
 for workload in workloads:
-    for distribution in distributions:
-        results_per_worker = {m: [{s:[] for s in setups} for _ in range(threads)] for m in metrics}
-        results = {m: {s: [] for s in setups} for m in metrics}
-        if load:
-            loadDB(workload, {**setups['CacheLib'], **distributions[distribution]})
-        for setup in setups:
-            for run in range(runs):
-                print(f'[WORKLOAD: {workload}] [DISTRIBUTION: {distribution}] [SETUP: {setup}] [RUN: {run+1}] ')
-                output_path = f"{results_dir}/{genSaneFilename(setup)}_{workload}_{distribution}_{run}.txt"
-                tracker_path = f'{results_dir}/{genSaneFilename(setup)}_{workload}_{distribution}_{run}_tracker.txt'
-                benchmark = {**setups[setup], **distributions[distribution], 'cachelib.tracker' : tracker_path}
-                runBenchmark(workload, benchmark, output_path, setup in enableController)
-                with open(output_path, "r") as output_file:
-                    lines = output_file.read()
-                    for metric in ['throughput', 'hitrate']:
-                        result = metrics[metric](lines)
-                        for worker in range(threads):
-                            results_per_worker[metric][worker][setup].append(result['workers'][worker])
-                        results[metric][setup].append(result['global'])
-                    output_file.close()
-                with open(tracker_path, "r") as tracker_file:
-                    lines = tracker_file.read()
-                    for metric in ['usedmem']:
-                        result = metrics[metric](lines)
-                        for worker in range(threads):
-                            results_per_worker[metric][worker][setup].append(result['workers'][worker])
-                        results[metric][setup].append(result['global'])
-                    tracker_file.close()
-        # Averaging results
-        for metric in metrics:
-            for worker in range(threads):
-                for setup, values in results_per_worker[metric][worker].items():
-                    min_size = min([len(x) for x in values])
-                    values = [v[:min_size] for v in values]
-                    results_per_worker[metric][worker][setup] = [np.mean(r) for r in zip(*values)]
-            for setup, values in results[metric].items():
-                min_size = min([len(x) for x in values])
-                values = [v[:min_size] for v in values]
-                results[metric][setup] = [np.mean(r) for r in zip(*values)]
-            # Building graphics
-            gxTenants(metric, results_per_worker[metric], f'{results_dir}/{workload}_{distribution}_{metric}')
-            for setup in setups:
-                gxTenantsStacked(metric, setup, results_per_worker[metric], f'{results_dir}/{workload}_{distribution}_{metric}_{genSaneFilename(setup)}', distribution)
-            gxGlobal(metric, results[metric], f'{results_dir}/{workload}_{distribution}_{metric}_global')
+    if load:
+        loadDB(workload, load_setup)
+    for setup, settings in setups.items():
+        for run in range(settings['runs']):
+            print(f'[WORKLOAD: {workload}] [SETUP: {setup}] [RUN: {run+1}/{settings["runs"]}] ')
+            dir = f'{settings["result_dir"]}/{run}'
+            settings['ycsb_config']['cachelib.tracker'] = f'{dir}/mem.txt'
+            os.makedirs(dir, exist_ok=True)
+            with open(f'{dir}/ycsb.txt', 'w') as f:
+                runBenchmark(workload, settings, f)
+                f.close()

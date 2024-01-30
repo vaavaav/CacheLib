@@ -25,7 +25,7 @@ class BasicDB : public DB {
   Status Read(const std::string &table, const std::string &key,
               const std::vector<std::string> *fields, std::vector<Field> &result);
 
-  Status Scan(const std::string &table, const std::string &key, int len,
+  Status Scan(const std::string &table, const std::string &key, long len,
               const std::vector<std::string> *fields, std::vector<std::vector<Field>> &result);
 
   Status Update(const std::string &table, const std::string &key, std::vector<Field> &values);

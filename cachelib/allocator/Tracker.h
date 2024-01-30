@@ -31,14 +31,13 @@ class Tracker : public PeriodicWorker {
 
   void work() override final {
     auto pools = cache_.getActivePools();
-    std::set<PoolId> pids(pools.begin(), pools.end());
     log << fmt::format("{}: ", time++);
     for (auto const& id : cache_.getPoolIds()) {
       auto pool_stats = cache_.getPoolStats(id);
-      bool active = pids.find(id) != pids.end();
+      bool active = pools.find(id) != pools.end();
       log << fmt::format("pool-{} {{ usedMem={} freeMem={} }} ", id,
-                         active * pool_stats.poolSize,
-                         active * pool_stats.freeMemoryBytes());
+                         active ? pool_stats.poolSize : 0,
+                         active ? pool_stats.freeMemoryBytes() : 0);
     }
     log << std::endl;
   }

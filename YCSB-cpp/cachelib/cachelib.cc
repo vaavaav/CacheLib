@@ -154,7 +154,7 @@ void CacheLib::Init() {
   if (cache_ == nullptr) {
     CacheLibAllocator::Config config;
     config
-        .setCacheSize(std::stoi(
+        .setCacheSize(std::stol(
             props_->GetProperty(PROP_CACHE_SIZE, PROP_CACHE_SIZE_DEFAULT)))
         .setCacheName("YCSBenchmark")
         .setAccessConfig({25, 15});
@@ -204,9 +204,6 @@ void CacheLib::Init() {
   }
 }
 
-void CacheLib::Active() { cache_->connect(pools_[threadId_]); }
-void CacheLib::Inactive() { cache_->disconnect(pools_[threadId_]); }
-
 DB::Status CacheLib::Read(const std::string& table,
                           const std::string& key,
                           const std::vector<std::string>* fields,
@@ -220,7 +217,7 @@ DB::Status CacheLib::Read(const std::string& table,
 
       if (new_handle) {
         std::memcpy(new_handle->getMemory(), data.data(), data.size());
-        cache_->insertOrReplace(new_handle);
+        cache_->insertOrReplace(new_handle, pools_[threadId_]);
       } else {
         return kError;
       }
@@ -234,7 +231,7 @@ DB::Status CacheLib::Read(const std::string& table,
 
 DB::Status CacheLib::Scan(const std::string& table,
                           const std::string& key,
-                          int len,
+                          long len,
                           const std::vector<std::string>* fields,
                           std::vector<std::vector<Field>>& result) {
   // seek key
@@ -245,7 +242,7 @@ DB::Status CacheLib::Scan(const std::string& table,
     }
   }
 
-  for (int i = 0; i < len; ++i) {
+  for (long i = 0; i < len; ++i) {
     if (itr == cache_->end()) {
       break;
     }
@@ -259,21 +256,19 @@ DB::Status CacheLib::Scan(const std::string& table,
 DB::Status CacheLib::Update(const std::string& table,
                             const std::string& key,
                             std::vector<Field>& values) {
-  auto item = cache_->find(key);
-  RDUpdate(table, key, values);
-
   std::string data = values.front().value;
 
   auto handle = cache_->allocate(pools_[threadId_], key, data.size());
-
   if (handle) {
     std::memcpy(handle->getMemory(), data.data(), data.size());
-    cache_->insertOrReplace(handle);
+    auto item = cache_->insertOrReplace(handle, pools_[threadId_]);
+    if (item == nullptr) {
+      RDUpdate(table, key, values);
+    }
+    return item == nullptr ? kNotFound : kOK;
   } else {
     return kError;
   }
-
-  return item == nullptr ? kNotFound : kOK;
 }
 
 DB::Status CacheLib::Insert(const std::string& table,
@@ -390,53 +385,53 @@ void CacheLib::RDGetOptions(
     if (val != 0) {
       opt->max_background_jobs = val;
     }
-    val = std::stoi(props_->GetProperty(PROP_TARGET_FILE_SIZE_BASE,
+    val = std::stol(props_->GetProperty(PROP_TARGET_FILE_SIZE_BASE,
                                         PROP_TARGET_FILE_SIZE_BASE_DEFAULT));
     if (val != 0) {
       opt->target_file_size_base = val;
     }
-    val = std::stoi(props_->GetProperty(PROP_TARGET_FILE_SIZE_MULT,
+    val = std::stol(props_->GetProperty(PROP_TARGET_FILE_SIZE_MULT,
                                         PROP_TARGET_FILE_SIZE_MULT_DEFAULT));
     if (val != 0) {
       opt->target_file_size_multiplier = val;
     }
-    val = std::stoi(props_->GetProperty(PROP_MAX_BYTES_FOR_LEVEL_BASE,
+    val = std::stol(props_->GetProperty(PROP_MAX_BYTES_FOR_LEVEL_BASE,
                                         PROP_MAX_BYTES_FOR_LEVEL_BASE_DEFAULT));
     if (val != 0) {
       opt->max_bytes_for_level_base = val;
     }
-    val = std::stoi(props_->GetProperty(PROP_WRITE_BUFFER_SIZE,
+    val = std::stol(props_->GetProperty(PROP_WRITE_BUFFER_SIZE,
                                         PROP_WRITE_BUFFER_SIZE_DEFAULT));
     if (val != 0) {
       opt->write_buffer_size = val;
     }
-    val = std::stoi(props_->GetProperty(PROP_MAX_WRITE_BUFFER,
+    val = std::stol(props_->GetProperty(PROP_MAX_WRITE_BUFFER,
                                         PROP_MAX_WRITE_BUFFER_DEFAULT));
     if (val != 0) {
       opt->max_write_buffer_number = val;
     }
-    val = std::stoi(
+    val = std::stol(
         props_->GetProperty(PROP_COMPACTION_PRI, PROP_COMPACTION_PRI_DEFAULT));
     if (val != -1) {
       opt->compaction_pri = static_cast<rocksdb::CompactionPri>(val);
     }
-    val = std::stoi(
+    val = std::stol(
         props_->GetProperty(PROP_MAX_OPEN_FILES, PROP_MAX_OPEN_FILES_DEFAULT));
     if (val != 0) {
       opt->max_open_files = val;
     }
 
-    val = std::stoi(props_->GetProperty(PROP_L0_COMPACTION_TRIGGER,
+    val = std::stol(props_->GetProperty(PROP_L0_COMPACTION_TRIGGER,
                                         PROP_L0_COMPACTION_TRIGGER_DEFAULT));
     if (val != 0) {
       opt->level0_file_num_compaction_trigger = val;
     }
-    val = std::stoi(props_->GetProperty(PROP_L0_SLOWDOWN_TRIGGER,
+    val = std::stol(props_->GetProperty(PROP_L0_SLOWDOWN_TRIGGER,
                                         PROP_L0_SLOWDOWN_TRIGGER_DEFAULT));
     if (val != 0) {
       opt->level0_slowdown_writes_trigger = val;
     }
-    val = std::stoi(props_->GetProperty(PROP_L0_STOP_TRIGGER,
+    val = std::stol(props_->GetProperty(PROP_L0_STOP_TRIGGER,
                                         PROP_L0_STOP_TRIGGER_DEFAULT));
     if (val != 0) {
       opt->level0_stop_writes_trigger = val;
@@ -467,7 +462,7 @@ void CacheLib::RDGetOptions(
       table_options.filter_policy.reset(
           rocksdb::NewBloomFilterPolicy(bloom_bits));
     }
-    //opt->table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
+    // opt->table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
 
     if (props_->GetProperty(PROP_INCREASE_PARALLELISM,
                             PROP_INCREASE_PARALLELISM_DEFAULT) == "true") {
@@ -568,7 +563,7 @@ DB::Status CacheLib::RDRead(const std::string& table,
 
 DB::Status CacheLib::RDScan(const std::string& table,
                             const std::string& key,
-                            int len,
+                            long len,
                             const std::vector<std::string>* fields,
                             std::vector<std::vector<Field>>& result) {
   rocksdb::Iterator* db_iter = db_->NewIterator(rocksdb::ReadOptions());

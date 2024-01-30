@@ -45,7 +45,7 @@ class CacheBaseTest : public CacheBase, public SlabAllocatorTestBase {
       const override {
     return {};
   }
-  std::vector<PoolId> getActivePools() override {};
+  std::set<PoolId> getActivePools() override {};
   CacheMetadata getCacheMetadata() const noexcept override { return {}; }
   GlobalCacheStats getGlobalCacheStats() const override { return {}; }
   SlabReleaseStats getSlabReleaseStats() const override { return {}; }

@@ -119,7 +119,7 @@ void CoreWorkload::Init(std::string const property_suffix,
   table_name_ =
       p.GetProperty(TABLENAME_PROPERTY + property_suffix,
                     p.GetProperty(TABLENAME_PROPERTY, TABLENAME_DEFAULT));
-  field_count_ = std::stoi(
+  field_count_ = std::stol(
       p.GetProperty(FIELD_COUNT_PROPERTY + property_suffix,
                     p.GetProperty(FIELD_COUNT_PROPERTY, FIELD_COUNT_DEFAULT)));
   field_prefix_ = p.GetProperty(
@@ -144,22 +144,22 @@ void CoreWorkload::Init(std::string const property_suffix,
                     p.GetProperty(READMODIFYWRITE_PROPORTION_PROPERTY,
                                   READMODIFYWRITE_PROPORTION_DEFAULT)));
 
-  record_count_ = std::stoi(p.GetProperty(RECORD_COUNT_PROPERTY));
-  int min_scan_len = std::stoi(p.GetProperty(
+  record_count_ = std::stol(p.GetProperty(RECORD_COUNT_PROPERTY));
+  long min_scan_len = std::stol(p.GetProperty(
       MIN_SCAN_LENGTH_PROPERTY + property_suffix,
       p.GetProperty(MIN_SCAN_LENGTH_PROPERTY, MIN_SCAN_LENGTH_DEFAULT)));
-  int max_scan_len = std::stoi(p.GetProperty(
+  long max_scan_len = std::stol(p.GetProperty(
       MAX_SCAN_LENGTH_PROPERTY + property_suffix,
       p.GetProperty(MAX_SCAN_LENGTH_PROPERTY, MAX_SCAN_LENGTH_DEFAULT)));
   std::string scan_len_dist =
       p.GetProperty(SCAN_LENGTH_DISTRIBUTION_PROPERTY + property_suffix,
                     p.GetProperty(SCAN_LENGTH_DISTRIBUTION_PROPERTY,
                                   SCAN_LENGTH_DISTRIBUTION_DEFAULT));
-  int insert_start = std::stoi(p.GetProperty(
+  long insert_start = std::stol(p.GetProperty(
       INSERT_START_PROPERTY + property_suffix,
       p.GetProperty(INSERT_START_PROPERTY, INSERT_START_DEFAULT)));
 
-  zero_padding_ = std::stoi(p.GetProperty(
+  zero_padding_ = std::stol(p.GetProperty(
       ZERO_PADDING_PROPERTY + property_suffix,
       p.GetProperty(ZERO_PADDING_PROPERTY, ZERO_PADDING_DEFAULT)));
 
@@ -203,9 +203,9 @@ void CoreWorkload::Init(std::string const property_suffix,
   // that is larger than what exists at the beginning of the test.
   // If the generator picks a key that is not inserted yet, we just ignore it
   // and pick another key.
-  int op_count = std::stoi(p.GetProperty(OPERATION_COUNT_PROPERTY));
-  int new_keys = (int)(op_count * insert_proportion); // a fudge factor
-  int request_key_domain_start = std::stoi(
+  long op_count = std::stol(p.GetProperty(OPERATION_COUNT_PROPERTY));
+  long new_keys = (long)(op_count * insert_proportion); // a fudge factor
+  long request_key_domain_start = std::stol(
       p.GetProperty(REQUEST_KEY_DOMAIN_START_PROPERTY + property_suffix,
                     p.GetProperty(REQUEST_KEY_DOMAIN_START_PROPERTY,
                                   REQUEST_KEY_DOMAIN_START_DEFAULT)));
@@ -213,7 +213,7 @@ void CoreWorkload::Init(std::string const property_suffix,
     throw utils::Exception("Request key domain start is lesser than 0: " +
                            std::to_string(request_key_domain_start));
   }
-  int request_key_domain_end = std::stoi(p.GetProperty(
+  long request_key_domain_end = std::stol(p.GetProperty(
       REQUEST_KEY_DOMAIN_END_PROPERTY + property_suffix,
       p.GetProperty(REQUEST_KEY_DOMAIN_END_PROPERTY,
                     std::to_string(record_count_ + new_keys - 1))));
@@ -258,7 +258,7 @@ ycsbc::Generator<uint64_t>* CoreWorkload::GetFieldLenGenerator(
       p.GetProperty(FIELD_LENGTH_DISTRIBUTION_PROPERTY + property_suffix,
                     p.GetProperty(FIELD_LENGTH_DISTRIBUTION_PROPERTY,
                                   FIELD_LENGTH_DISTRIBUTION_DEFAULT));
-  int field_len = std::stoi(p.GetProperty(
+  long field_len = std::stol(p.GetProperty(
       FIELD_LENGTH_PROPERTY + property_suffix,
       p.GetProperty(FIELD_LENGTH_PROPERTY, FIELD_LENGTH_DEFAULT)));
   if (field_len_dist == "constant") {
@@ -279,12 +279,12 @@ std::string CoreWorkload::BuildKeyName(uint64_t key_num) {
   }
   std::string prekey = "user";
   std::string value = std::to_string(key_num);
-  int fill = std::max(0, zero_padding_ - static_cast<int>(value.size()));
+  long fill = std::max(0l, zero_padding_ - static_cast<long>(value.size()));
   return prekey.append(fill, '0').append(value);
 }
 
 void CoreWorkload::BuildValues(std::vector<ycsbc::DB::Field>& values) {
-  for (int i = 0; i < field_count_; ++i) {
+  for (long i = 0; i < field_count_; ++i) {
     values.push_back(DB::Field());
     ycsbc::DB::Field& field = values.back();
     field.name.append(field_prefix_).append(std::to_string(i));
@@ -295,6 +295,14 @@ void CoreWorkload::BuildValues(std::vector<ycsbc::DB::Field>& values) {
       return byte_generator.Next();
     });
   }
+}
+
+std::string CoreWorkload::BuildValue(size_t size) {
+  std::string result;
+  RandomByteGenerator byteGenerator;
+  std::generate_n(
+      std::back_inserter(result), size, [&]() { return byteGenerator.Next(); });
+  return result;
 }
 
 void CoreWorkload::BuildSingleValue(std::vector<ycsbc::DB::Field>& values) {
@@ -327,6 +335,14 @@ bool CoreWorkload::DoInsert(DB& db) {
   std::vector<DB::Field> fields;
   BuildValues(fields);
   return db.Insert(table_name_, key, fields) == DB::kOK;
+}
+
+bool CoreWorkload::DoInsert(DB& db, std::string const& key, size_t objectSize) {
+  std::vector<DB::Field> fields;
+  auto field = DB::Field();
+  field.value = BuildValue(objectSize);
+  fields.push_back(field);
+  return db.Insert(table_name_, key, fields);
 }
 
 bool CoreWorkload::DoTransaction(DB& db) {
@@ -366,6 +382,13 @@ DB::Status CoreWorkload::TransactionRead(DB& db) {
   }
 }
 
+DB::Status CoreWorkload::TransactionRead(DB& db,
+                                         std::string const& key,
+                                         size_t objectSize) {
+  std::vector<DB::Field> result;
+  return db.Read(table_name_, key, NULL, result);
+}
+
 DB::Status CoreWorkload::TransactionReadModifyWrite(DB& db) {
   uint64_t key_num = NextTransactionKeyNum();
   const std::string key = BuildKeyName(key_num);
@@ -388,10 +411,22 @@ DB::Status CoreWorkload::TransactionReadModifyWrite(DB& db) {
   return db.Update(table_name_, key, values);
 }
 
+DB::Status CoreWorkload::TransactionReadModifyWrite(DB& db,
+                                                    std::string const& key,
+                                                    size_t objectSize) {
+  std::vector<DB::Field> result;
+  db.Read(table_name_, key, NULL, result);
+  std::vector<DB::Field> values;
+  DB::Field field;
+  field.value = BuildValue(objectSize);
+  values.push_back(field);
+  return db.Update(table_name_, key, values);
+}
+
 DB::Status CoreWorkload::TransactionScan(DB& db) {
   uint64_t key_num = NextTransactionKeyNum();
   const std::string key = BuildKeyName(key_num);
-  int len = scan_len_chooser_->Next();
+  long len = scan_len_chooser_->Next();
   std::vector<std::vector<DB::Field>> result;
   if (!read_all_fields()) {
     std::vector<std::string> fields;
@@ -414,6 +449,15 @@ DB::Status CoreWorkload::TransactionUpdate(DB& db) {
   return db.Update(table_name_, key, values);
 }
 
+DB::Status CoreWorkload::TransactionUpdate(DB& db,
+                                           std::string const& key,
+                                           size_t objectSize) {
+  std::vector<DB::Field> values;
+  DB::Field field;
+  field.value = BuildValue(objectSize);
+  return db.Update(table_name_, key, values);
+}
+
 DB::Status CoreWorkload::TransactionInsert(DB& db) {
   uint64_t key_num = transaction_insert_key_sequence_->Next();
   const std::string key = BuildKeyName(key_num);
@@ -422,6 +466,15 @@ DB::Status CoreWorkload::TransactionInsert(DB& db) {
   DB::Status s = db.Insert(table_name_, key, values);
   transaction_insert_key_sequence_->Acknowledge(key_num);
   return s;
+}
+
+DB::Status CoreWorkload::TransactionInsert(DB& db,
+                                           std::string const& key,
+                                           size_t objectSize) {
+  std::vector<DB::Field> values;
+  DB::Field field;
+  field.value = BuildValue(objectSize);
+  return db.Insert(table_name_, key, values);
 }
 
 } // namespace ycsbc

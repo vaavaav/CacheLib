@@ -90,9 +90,9 @@ inline bool StrToBool(std::string str) {
 }
 
 inline std::string Trim(const std::string &str) {
-  auto front = std::find_if_not(str.begin(), str.end(), [](int c){ return std::isspace(c); });
+  auto front = std::find_if_not(str.begin(), str.end(), [](long c){ return std::isspace(c); });
   return std::string(front, std::find_if_not(str.rbegin(), std::string::const_reverse_iterator(front),
-      [](int c){ return std::isspace(c); }).base());
+      [](long c){ return std::isspace(c); }).base());
 }
 
 } // utils

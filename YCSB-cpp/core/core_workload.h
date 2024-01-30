@@ -10,18 +10,19 @@
 #ifndef YCSB_C_CORE_WORKLOAD_H_
 #define YCSB_C_CORE_WORKLOAD_H_
 
-#include <vector>
-#include <string>
-#include "db.h"
-#include "properties.h"
-#include "generator.h"
-#include "discrete_generator.h"
-#include "counter_generator.h"
-#include "acknowledged_counter_generator.h"
-#include "utils.h"
-#include <unordered_map>
-#include <thread>
 #include <atomic>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
+
+#include "acknowledged_counter_generator.h"
+#include "counter_generator.h"
+#include "db.h"
+#include "discrete_generator.h"
+#include "generator.h"
+#include "properties.h"
+#include "utils.h"
 
 namespace ycsbc {
 
@@ -41,7 +42,7 @@ enum Operation {
   MAXOPTYPE
 };
 
-extern const char *kOperationString[MAXOPTYPE];
+extern const char* kOperationString[MAXOPTYPE];
 
 class CoreWorkload {
  public:
@@ -183,25 +184,31 @@ class CoreWorkload {
   ///
   static const std::string REQUEST_KEY_DOMAIN_END_PROPERTY;
 
-
   ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
   ///
-  virtual void Init(std::string const property_suffix, const utils::Properties &p);
+  virtual void Init(std::string const property_suffix,
+                    const utils::Properties& p);
 
-  virtual bool DoInsert(DB &db);
-  virtual bool DoTransaction(DB &db);
+  virtual bool DoInsert(DB& db);
+  virtual bool DoTransaction(DB& db);
 
   bool read_all_fields() const { return read_all_fields_; }
   bool write_all_fields() const { return write_all_fields_; }
 
-  CoreWorkload() :
-      field_count_(0), read_all_fields_(false), write_all_fields_(false),
-      field_len_generator_(nullptr), key_chooser_(nullptr), field_chooser_(nullptr),
-      scan_len_chooser_(nullptr), insert_key_sequence_(nullptr),
-      transaction_insert_key_sequence_(nullptr), ordered_inserts_(true), record_count_(0) {
-  }
+  CoreWorkload()
+      : field_count_(0),
+        read_all_fields_(false),
+        write_all_fields_(false),
+        field_len_generator_(nullptr),
+        key_chooser_(nullptr),
+        field_chooser_(nullptr),
+        scan_len_chooser_(nullptr),
+        insert_key_sequence_(nullptr),
+        transaction_insert_key_sequence_(nullptr),
+        ordered_inserts_(true),
+        record_count_(0) {}
 
   virtual ~CoreWorkload() {
     delete field_len_generator_;
@@ -213,49 +220,64 @@ class CoreWorkload {
   }
 
   void request_stop() {
-    stop_requested_.store(true);
+    stop_requested_.store(true, std::memory_order_release);
   }
 
-  bool is_stop_requested(){
-    return stop_requested_.load();
-  }
+  bool is_stop_requested() { return stop_requested_.load(); }
 
  protected:
-
-  static Generator<uint64_t> *GetFieldLenGenerator(std::string property_suffix, const utils::Properties &p);
+  static Generator<uint64_t>* GetFieldLenGenerator(std::string property_suffix,
+                                                   const utils::Properties& p);
   std::string BuildKeyName(uint64_t key_num);
-  void BuildValues(std::vector<DB::Field> &values);
-  void BuildSingleValue(std::vector<DB::Field> &update);
+  void BuildValues(std::vector<DB::Field>& values);
+  void BuildSingleValue(std::vector<DB::Field>& update);
 
   uint64_t NextTransactionKeyNum();
   std::string NextFieldName();
 
-  DB::Status TransactionRead(DB &db);
-  DB::Status TransactionReadModifyWrite(DB &db);
-  DB::Status TransactionScan(DB &db);
-  DB::Status TransactionUpdate(DB &db);
-  DB::Status TransactionInsert(DB &db);
+  DB::Status TransactionRead(DB& db);
+  DB::Status TransactionReadModifyWrite(DB& db);
+  DB::Status TransactionScan(DB& db);
+  DB::Status TransactionUpdate(DB& db);
+  DB::Status TransactionInsert(DB& db);
+
+  // for productiont traces
+  std::string BuildValue(size_t size);
+  virtual bool DoInsert(DB& db, std::string const& key, size_t objectSize);
+  DB::Status TransactionRead(DB& db, std::string const& key, size_t objectSize);
+  DB::Status TransactionReadModifyWrite(DB& db,
+                                        std::string const& key,
+                                        size_t objectSize);
+  DB::Status TransactionScan(DB& db, std::string const& key, size_t objectSize);
+  DB::Status TransactionUpdate(DB& db,
+                               std::string const& key,
+                               size_t objectSize);
+  DB::Status TransactionInsert(DB& db,
+                               std::string const& key,
+                               size_t objectSize);
 
   std::string table_name_;
-  int field_count_;
+  long field_count_;
   std::string field_prefix_;
   bool read_all_fields_;
   bool write_all_fields_;
-  Generator<uint64_t> *field_len_generator_;
+  Generator<uint64_t>* field_len_generator_;
   DiscreteGenerator<Operation> op_chooser_;
-  Generator<uint64_t> *key_chooser_;
-  Generator<uint64_t> *field_chooser_;
-  Generator<uint64_t> *scan_len_chooser_;
-  CounterGenerator *insert_key_sequence_; // load insert key gen
-  AcknowledgedCounterGenerator *transaction_insert_key_sequence_; // transaction insert key gen
+  Generator<uint64_t>* key_chooser_;
+  Generator<uint64_t>* field_chooser_;
+  Generator<uint64_t>* scan_len_chooser_;
+  CounterGenerator* insert_key_sequence_; // load insert key gen
+  AcknowledgedCounterGenerator* transaction_insert_key_sequence_; // transaction
+                                                                  // insert key
+                                                                  // gen
   bool ordered_inserts_;
   size_t record_count_;
-  int zero_padding_;
+  long zero_padding_;
 
-  private:
-    std::atomic_bool stop_requested_ = {false};
+ private:
+  std::atomic_bool stop_requested_ = {false};
 };
 
-} // ycsbc
+} // namespace ycsbc
 
 #endif // YCSB_C_CORE_WORKLOAD_H_

@@ -38,6 +38,7 @@
 #include <folly/Range.h>
 #pragma GCC diagnostic pop
 
+#include <Shards/Shards.h>
 #include <holpaca/data_plane/autonomous_stage.h>
 #include <holpaca/data_plane/cache_server.h>
 #include <holpaca/data_plane/stage_server.h>
@@ -84,8 +85,6 @@
 #include "cachelib/common/Time.h"
 #include "cachelib/common/Utils.h"
 #include "cachelib/shm/ShmManager.h"
-
-#include <shards/shards.hpp>
 
 namespace facebook {
 namespace cachelib {
@@ -519,6 +518,7 @@ class CacheAllocator : public CacheBase,
   //
   // @throw std::invalid_argument if the handle is already accessible.
   bool insert(const WriteHandle& handle);
+  bool insert(const WriteHandle& handle, PoolId pid);
 
   // Replaces the allocated handle into the AccessContainer, making it
   // accessible for everyone. If an existing handle is already in the
@@ -533,6 +533,7 @@ class CacheAllocator : public CacheBase,
   //        is already out of refcounts.
   // @return handle to the old item that had been replaced
   WriteHandle insertOrReplace(const WriteHandle& handle);
+  WriteHandle insertOrReplace(const WriteHandle& handle, PoolId pid);
 
   // look up an item by its key across the nvm cache as well if enabled.
   //
@@ -2082,6 +2083,11 @@ class CacheAllocator : public CacheBase,
   // holpaca
   std::unordered_map<PoolId, std::shared_ptr<Shards>> shards_;
   std::mutex shardsLock_;
+  std::unordered_map<PoolId, std::unordered_map<uint32_t, uint32_t>>
+      objectSizes_;
+  std::unordered_map<PoolId, std::pair<uint32_t, uint32_t>> hitsLookups_;
+  std::mutex hitsLookupsLock_;
+  std::mutex objectSizesLock_;
   std::unique_ptr<holpaca::data_plane::Stage> holpaca_stage_;
   std::unique_ptr<Tracker> tracker_;
 
@@ -2186,31 +2192,60 @@ class CacheAllocator : public CacheBase,
     }
   }
 
+  uint32_t meanObjectSize(PoolId pid) {
+    uint32_t meanObjectSize = 0;
+    uint32_t counter = 0;
+    std::lock_guard<std::mutex> lock(objectSizesLock_);
+    if (auto x = objectSizes_.find(pid); x != objectSizes_.end()) {
+      for (auto const& [object_size, count] : x->second) {
+        meanObjectSize += object_size * count;
+        counter += count;
+      }
+      x->second.clear();
+    }
+    return counter > 0 ? meanObjectSize / counter : 0;
+  }
+
+  bool isActive(PoolId pid) {
+    std::lock_guard<std::mutex> lock(active_pools_mutex);
+    return (active_pools.find(pid) != active_pools.end());
+  }
+
+  std::map<uint32_t, double> mrc(PoolId id) {
+    std::lock_guard<std::mutex> lock(shardsLock_);
+    if (auto x = shards_.find(id); x != shards_.end()) {
+      return x->second->mrc();
+    }
+    return {};
+  }
+
+  std::pair<uint32_t, uint32_t> getHitsLookups(PoolId id) {
+    std::lock_guard<std::mutex> lock(hitsLookupsLock_);
+    auto r = hitsLookups_[id];
+    hitsLookups_[id] = {0, 0};
+    return r;
+  }
+
   holpaca::common::Status getStatus() override final {
     holpaca::common::Status result = {};
-    for (auto const& id : getPoolIds()) {
-      bool isActive{[&] {
-        std::lock_guard<std::mutex> lock(active_pools_mutex);
-        return active_pools.find(id) != active_pools.end();
-      }()};
+    for (PoolId const& id : getPoolIds()) {
+      auto const mean_object_size = meanObjectSize(id);
       auto pool_stats = getPoolStats(id);
+      auto const [hits, lookups] = getHitsLookups(id);
+      bool const is_active = isActive(id);
       std::map<uint64_t, uint32_t> tailHits;
-      std::unordered_map<uint32_t, double> mrc;
-      if (auto x = shards_.find(id); x != shards_.end()) {
-        mrc = x->second->mrc();
-      } 
       for (auto const& [cid, cs] : pool_stats.cacheStats) {
         tailHits[cid] = cs.containerStat.numTailAccesses;
       }
-      result[id] = holpaca::common::SubStatus{
-          pool_stats.poolSize,
-          pool_stats.freeMemoryBytes(),
-          static_cast<uint32_t>(pool_stats.numPoolGetHits),
-          0,
-          pool_stats.numEvictions(),
-          tailHits,
-          std::map<uint32_t, double>(mrc.begin(), mrc.end()),
-          isActive};
+      result[id] = holpaca::common::SubStatus{pool_stats.poolSize,
+                                              pool_stats.freeMemoryBytes(),
+                                              hits,
+                                              lookups,
+                                              pool_stats.numEvictions(),
+                                              tailHits,
+                                              mrc(id),
+                                              mean_object_size,
+                                              is_active};
     }
     return result;
   }
@@ -2220,35 +2255,39 @@ class CacheAllocator : public CacheBase,
   std::unordered_map<PoolId, int> active_pools;
 
  public:
-  void connect(PoolId pid) {
-    std::lock_guard<std::mutex> guard(active_pools_mutex);
-    if (active_pools.find(pid) == active_pools.end()) {
-      active_pools[pid] = 1;
+  void activate(PoolId pid) {
+    std::lock_guard<std::mutex> lock(active_pools_mutex);
+    if (auto const& x = active_pools.find(pid); x != active_pools.end()) {
+      x->second = 3;
     } else {
-      active_pools[pid]++;
+      active_pools.insert({pid, 3});
     }
   }
-  void disconnect(PoolId pid) {
-    std::lock_guard<std::mutex> guard(active_pools_mutex);
+
+  void deactive(PoolId pid) {
+    std::lock_guard<std::mutex> lg(active_pools_mutex);
     if (active_pools.find(pid) != active_pools.end()) {
-      auto r = (--active_pools[pid]);
+      auto r = (active_pools[pid]--);
       if (r == 0) {
         active_pools.erase(pid);
       }
     }
   }
 
-  size_t size() {
-    return this->getCacheMemoryStats().ramCacheSize;
-  }
+  size_t size() { return this->getCacheMemoryStats().ramCacheSize; }
 
-  std::vector<PoolId> getActivePools() override {
-    std::vector<PoolId> results;
-    std::lock_guard<std::mutex> guard(active_pools_mutex);
-    for (auto const& [id, _] : active_pools) {
-      results.push_back(id);
+  std::set<PoolId> getActivePools() override {
+    for (auto const& [pid, _] : active_pools) {
+      deactive(pid);
     }
-    return results;
+    std::set<PoolId> result;
+    {
+      std::lock_guard<std::mutex> guard(active_pools_mutex);
+      for (auto const& [pid, _] : active_pools) {
+        result.insert(pid);
+      }
+    }
+    return result;
   }
 };
 } // namespace cachelib

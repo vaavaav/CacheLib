@@ -25,7 +25,7 @@ class CacheLib : public DB {
   Status Read(const std::string &table, const std::string &key,
               const std::vector<std::string> *fields, std::vector<Field> &result);
 
-  Status Scan(const std::string &table, const std::string &key, int len,
+  Status Scan(const std::string &table, const std::string &key, long len,
               const std::vector<std::string> *fields, std::vector<std::vector<Field>> &result);
 
   Status Update(const std::string &table, const std::string &key, std::vector<Field> &values);
@@ -34,13 +34,11 @@ class CacheLib : public DB {
 
   Status Delete(const std::string &table, const std::string &key);
 
-  void Active();
-  void Inactive();
 
   Status RDRead(const std::string &table, const std::string &key,
               const std::vector<std::string> *fields, std::vector<Field> &result);
 
-  Status RDScan(const std::string &table, const std::string &key, int len,
+  Status RDScan(const std::string &table, const std::string &key, long len,
               const std::vector<std::string> *fields, std::vector<std::vector<Field>> &result);
 
   Status RDUpdate(const std::string &table, const std::string &key, std::vector<Field> &values);

@@ -13,7 +13,7 @@
 
 class CountDownLatch {
  public:
-  CountDownLatch(int count) : count_(count) {}
+  CountDownLatch(long count) : count_(count) {}
   void Await() {
     std::unique_lock<std::mutex> lock(mu_);
     cv_.wait(lock, [this]{return count_ <= 0;});
@@ -29,7 +29,7 @@ class CountDownLatch {
     }
   }
  private:
-  int count_;
+  long count_;
   std::mutex mu_;
   std::condition_variable cv_;
 };

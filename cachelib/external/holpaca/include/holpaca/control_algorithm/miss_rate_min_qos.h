@@ -1,5 +1,6 @@
 #pragma once
 #include <holpaca/common/cache.h>
+#include <holpaca/control_algorithm/control_algorithm.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
@@ -23,23 +24,23 @@ namespace holpaca::control_algorithm {
 #define QOS_MARGIN 0.01
 #define MRC_MIN_SIZE 5
 
-struct Context {
-  double m_max{0};
-  struct PoolConfig {
-    double m_size{0};
-    double m_current_size{0};
-    bool m_override_max_delta{false};
-    tk::spline m_mrc;
-    double m_cache_size_for_qos_lower_bound{0};
-    double m_cache_size_for_qos_upper_bound{0};
-    double inline getMR() const { return getMR(m_size); };
-    double inline getMR(double const size) const { return m_mrc(size); };
+class MissRateMinQOS : public ControlAlgorithm {
+  struct Context {
+    double m_max{0};
+    struct PoolConfig {
+      double m_size{0};
+      double m_current_size{0};
+      bool m_override_max_delta{false};
+      tk::spline m_mrc;
+      double m_cache_size_for_qos_lower_bound{0};
+      double m_cache_size_for_qos_upper_bound{0};
+      double inline getMR() const { return getMR(m_size); };
+      double inline getMR(double const size) const { return m_mrc(size); };
+    };
+    std::unordered_map<pid_t, PoolConfig> m_pool_configs{};
   };
-  std::unordered_map<pid_t, PoolConfig> m_pool_configs{};
-};
 
-class MissRateMin {
-  MissRateMin() = delete;
+  MissRateMinQOS() = delete;
   Cache* cache = NULL;
   std::shared_ptr<spdlog::logger> m_logger;
   std::unordered_map<pid_t, double> m_qos;
@@ -288,12 +289,12 @@ class MissRateMin {
   static double M1(void* xp, void* yp) { return fabs(E1(xp) - E1(yp)); }
 
  public:
-  void run() {
+  void run() override final {
     collect();
     compute();
     enforce();
   }
-  MissRateMin(Cache* cache, std::unordered_map<pid_t, double> qos)
+  MissRateMinQOS(Cache* cache, std::unordered_map<pid_t, double> qos)
       : cache(cache), m_qos(qos) {
     try {
       m_logger =
@@ -309,7 +310,7 @@ class MissRateMin {
     r = gsl_rng_alloc(gsl_rng_default);
   }
 
-  ~MissRateMin() {
+  ~MissRateMinQOS() {
     m_logger->info("Destructing MissRateMin");
     gsl_rng_free(r);
   }

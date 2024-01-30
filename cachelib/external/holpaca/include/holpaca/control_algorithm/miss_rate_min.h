@@ -1,5 +1,6 @@
 #pragma once
 #include <holpaca/common/cache.h>
+#include <holpaca/control_algorithm/control_algorithm.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
@@ -21,20 +22,19 @@ namespace holpaca::control_algorithm {
 #define MAX_DELTA 0.05
 #define MRC_MIN_SIZE 5
 
-struct Context {
-  double m_max{0};
-  struct PoolConfig {
-    double m_size{0};
-    double m_current_size{0};
-    double m_real_mr{0};
-    tk::spline m_mrc;
-    double inline getMR() const { return m_mrc(m_size); };
-  };
-  std::unordered_map<pid_t, PoolConfig> m_pool_configs{};
-};
-
-class MissRateMin {
+class MissRateMin : public ControlAlgorithm {
   MissRateMin() = delete;
+  struct Context {
+    double m_max{0};
+    struct PoolConfig {
+      double m_size{0};
+      double m_current_size{0};
+      double m_real_mr{0};
+      tk::spline m_mrc;
+      double inline getMR() const { return m_mrc(m_size); };
+    };
+    std::unordered_map<pid_t, PoolConfig> m_pool_configs{};
+  };
   Cache* cache = NULL;
   std::shared_ptr<spdlog::logger> m_logger;
   std::unordered_set<pid_t> m_active{};
@@ -230,7 +230,7 @@ class MissRateMin {
   static double M1(void* xp, void* yp) { return fabs(E1(xp) - E1(yp)); }
 
  public:
-  void run() {
+  void run() override final {
     collect();
     compute();
     enforce();

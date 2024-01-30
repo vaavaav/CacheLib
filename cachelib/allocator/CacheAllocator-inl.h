@@ -22,14 +22,16 @@ namespace cachelib {
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::CacheAllocator(Config config)
     : CacheAllocator(InitMemType::kNone, config) {
-  {}
+  {
+  }
   initCommon(false);
 }
 
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::CacheAllocator(SharedMemNewT, Config config)
     : CacheAllocator(InitMemType::kMemNew, config) {
-  {}
+  {
+  }
   initCommon(false);
   shmManager_->removeShm(detail::kShmInfoName);
 }
@@ -37,7 +39,8 @@ CacheAllocator<CacheTrait>::CacheAllocator(SharedMemNewT, Config config)
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::CacheAllocator(SharedMemAttachT, Config config)
     : CacheAllocator(InitMemType::kMemAttach, config) {
-  {}
+  {
+  }
   for (auto pid : *metadata_.compactCachePools()) {
     isCompactCachePool_[pid] = true;
   }
@@ -95,8 +98,7 @@ CacheAllocator<CacheTrait>::CacheAllocator(
       // nvmCacheState's current time in sync
       nvmCacheState_{cacheInstanceCreationTime_, config_.cacheDir,
                      config_.isNvmCacheEncryptionEnabled(),
-                     config_.isNvmCacheTruncateAllocSizeEnabled()} {
-}
+                     config_.isNvmCacheTruncateAllocSizeEnabled()} {}
 
 template <typename CacheTrait>
 CacheAllocator<CacheTrait>::~CacheAllocator() {
@@ -1006,6 +1008,22 @@ void CacheAllocator<CacheTrait>::insertInMMContainer(Item& item) {
  * preserve the appropriate state in the MMContainer. Note that this insert
  * will also race with the removes we do in SlabRebalancing code paths.
  */
+template <typename CacheTrait>
+bool CacheAllocator<CacheTrait>::insert(const WriteHandle& handle, PoolId pid) {
+  auto const inserted = insert(handle);
+  this->activate(pid);
+  if (inserted) {
+    auto const object_size = handle->getTotalSize();
+    std::lock_guard<std::mutex> l(objectSizesLock_);
+    if (auto os = objectSizes_[pid].find(object_size);
+        os != objectSizes_[pid].end()) {
+      (os->second)++;
+    } else {
+      objectSizes_[pid].emplace(object_size, 1);
+    }
+  }
+  return inserted;
+}
 
 template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::insert(const WriteHandle& handle) {
@@ -1046,6 +1064,32 @@ bool CacheAllocator<CacheTrait>::insertImpl(const WriteHandle& handle,
   }
 
   return result == AllocatorApiResult::INSERTED;
+}
+template <typename CacheTrait>
+typename CacheAllocator<CacheTrait>::WriteHandle
+CacheAllocator<CacheTrait>::insertOrReplace(const WriteHandle& handle,
+                                            PoolId pid) {
+  this->activate(pid);
+  auto const new_object_size = handle->getTotalSize();
+  auto replaced = insertOrReplace(handle);
+  {
+    std::lock_guard<std::mutex> l(objectSizesLock_);
+    if (replaced) {
+      auto const old_object_size = replaced->getTotalSize();
+      if (auto os = objectSizes_[pid].find(new_object_size);
+          os != objectSizes_[pid].end()) {
+        (os->second)--;
+      }
+    }
+    if (auto os = objectSizes_[pid].find(new_object_size);
+        os != objectSizes_[pid].end()) {
+      (os->second)++;
+    } else {
+      objectSizes_[pid].emplace(new_object_size, 1);
+    }
+  }
+
+  return replaced;
 }
 
 template <typename CacheTrait>
@@ -1573,8 +1617,8 @@ void CacheAllocator<CacheTrait>::invalidateNvm(Item& item) {
     {
       auto lock = nvmCache_->getItemDestructorLock(hk);
       if (!item.isNvmEvicted() && item.isNvmClean() && item.isAccessible()) {
-        // item is being updated and invalidated in nvm. Mark the item to avoid
-        // destructor to be executed from nvm
+        // item is being updated and invalidated in nvm. Mark the item to
+        // avoid destructor to be executed from nvm
         nvmCache_->markNvmItemRemovedLocked(hk);
       }
       item.unmarkNvmClean();
@@ -1762,12 +1806,31 @@ CacheAllocator<CacheTrait>::find(typename Item::Key key) {
 template <typename CacheTrait>
 typename CacheAllocator<CacheTrait>::ReadHandle
 CacheAllocator<CacheTrait>::find(typename Item::Key key, PoolId pid) {
-  auto key_ = std::string(key);
+  auto handle = find(key);
+  this->activate(pid);
   {
+    auto key_str = std::string(key);
     std::lock_guard<std::mutex> l(shardsLock_);
-    shards_[pid]->feedKey(key_, key_.size());
+    shards_[pid]->feed(key_str, 1);
   }
-  return findImpl(key, AccessMode::kRead);
+  if (handle != nullptr) {
+    auto const object_size = handle->getTotalSize();
+    std::lock_guard<std::mutex> l(objectSizesLock_);
+    if (auto os = objectSizes_[pid].find(object_size);
+        os != objectSizes_[pid].end()) {
+      (os->second)++;
+    } else {
+      objectSizes_[pid].emplace(object_size, 1);
+    }
+  }
+  {
+    std::lock_guard<std::mutex> l(hitsLookupsLock_);
+    if (handle != nullptr) {
+      hitsLookups_[pid].first++;
+    }
+    hitsLookups_[pid].second++;
+  }
+  return handle;
 }
 
 template <typename CacheTrait>
@@ -1946,9 +2009,9 @@ folly::IOBuf CacheAllocator<CacheTrait>::convertToIOBufT(Handle& handle) {
     handle.release();
     iobuf = folly::IOBuf{folly::IOBuf::TAKE_OWNERSHIP, item,
 
-                         // Since we'll be moving the IOBuf data pointer forward
-                         // by dataOffset, we need to adjust the IOBuf length
-                         // accordingly
+                         // Since we'll be moving the IOBuf data pointer
+                         // forward by dataOffset, we need to adjust the IOBuf
+                         // length accordingly
                          dataOffset + item->getSize(),
 
                          [](void* buf, void* userData) {
@@ -2060,7 +2123,15 @@ PoolId CacheAllocator<CacheTrait>::addPool(
   auto pid = allocator_->addPool(name, size, allocSizes, ensureProvisionable);
   {
     std::lock_guard<std::mutex> lg(shardsLock_);
-    shards_[pid] = std::make_shared<FixedSizeShards>((1<<24)/1000, 1<<24, 8000, 100);
+    shards_[pid] = std::shared_ptr<Shards>(Shards::fixedSize(0.001, 32000));
+  }
+  {
+    std::lock_guard<std::mutex> lg(objectSizesLock_);
+    objectSizes_[pid] = {};
+  }
+  {
+    std::lock_guard<std::mutex> lg(hitsLookupsLock_);
+    hitsLookups_[pid] = {0, 0};
   }
   createMMContainers(pid, std::move(config));
   setRebalanceStrategy(pid, std::move(rebalanceStrategy));
@@ -2651,7 +2722,8 @@ void CacheAllocator<CacheTrait>::evictForSlabRelease(
 
       stats_.numEvictionSuccesses.inc();
 
-      // we have the last handle. no longer need to hold on to the exclusive bit
+      // we have the last handle. no longer need to hold on to the exclusive
+      // bit
       item.unmarkMoving();
 
       // manually decrement the refcount to call releaseBackToAllocator
@@ -2707,8 +2779,8 @@ CacheAllocator<CacheTrait>::advanceIteratorAndTryEvictRegularItem(
     return WriteHandle{};
   }
 
-  // If there are other accessors, we should abort. Acquire a handle here since
-  // if we remove the item from both access containers and mm containers
+  // If there are other accessors, we should abort. Acquire a handle here
+  // since if we remove the item from both access containers and mm containers
   // below, we will need a handle to ensure proper cleanup in case we end up
   // not evicting this item
   auto evictHandle = accessContainer_->removeIf(item, &itemExclusivePredicate);

@@ -4,9 +4,12 @@
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
 #include <holpaca/config.h>
+#include <holpaca/control_algorithm/control_algorithm.h>
+#include <holpaca/control_algorithm/hit_ratio_maximization.h>
 #include <holpaca/control_algorithm/marginal_hits.h>
-#include <holpaca/control_algorithm/proportional_share.h>
 #include <holpaca/control_algorithm/miss_rate_min.h>
+#include <holpaca/control_algorithm/miss_rate_min_qos.h>
+#include <holpaca/control_algorithm/proportional_share.h>
 #include <holpaca/control_plane/cache_proxy.h>
 #include <holpaca/data_plane/stage.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -28,7 +31,8 @@ class Controller {
 
  public:
   Controller(std::chrono::milliseconds const periodicity,
-             char const* logfile = config::controller_log_file) {
+             char const* logfile = config::controller_log_file,
+             char** args = NULL) {
     try {
       logger = spdlog::basic_logger_st("Controller", logfile, true);
     } catch (const spdlog::spdlog_ex& ex) {
@@ -42,11 +46,22 @@ class Controller {
     m_continue = true;
     m_control_algorithms.push_back(
         // std::make_shared<ProportionalShare>(proxy, periodicity)
-        std::thread{[this, periodicity]() {
-          MissRateMin msm(this->proxy);
-          //MissRateMin msm(this->proxy, std::unordered_map<pid_t, double>{{0, 0.75}});
+        std::thread{[this, args, periodicity]() {
+          std::shared_ptr<ControlAlgorithm> ca;
+          if (std::string(args[0]) == "hit_ratio_maximization") {
+            ca = std::make_shared<HitRatioMaximization>(this->proxy);
+          } else if (std::string(args[0]) ==
+                     "hit_ratio_maximization_with_qos") {
+            ca = std::make_shared<MissRateMinQOS>(
+                this->proxy,
+                std::unordered_map<pid_t, double>{
+                    {strtol(args[1], NULL, 10), strtol(args[2], NULL, 10)}});
+          } else {
+            std::cout << args[0] << std::endl;
+            logger->error("Invalid control algorithm");
+          }
           while (this->m_continue) {
-            msm.run();
+            ca->run();
             std::this_thread::sleep_for(periodicity);
           }
         }});

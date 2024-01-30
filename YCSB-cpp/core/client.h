@@ -13,18 +13,18 @@
 
 #include "core_workload.h"
 #include "countdown_latch.h"
-#include "terminator_thread.h"
 #include "db.h"
+#include "terminator_thread.h"
 #include "utils.h"
 
 namespace ycsbc {
 
-inline int ClientThread(std::chrono::seconds sleepafterload,
+inline long ClientThread(std::chrono::seconds sleepafterload,
                         std::chrono::seconds maxexecutiontime,
                         int threadId,
                         ycsbc::DB* db,
                         ycsbc::CoreWorkload* wl,
-                        const int num_ops,
+                        const long num_ops,
                         bool is_loading,
                         bool init_db,
                         bool cleanup_db,
@@ -43,20 +43,18 @@ inline int ClientThread(std::chrono::seconds sleepafterload,
                               maxexecutiontime, wl);
     }
 
-    int ops = 0;
+    long ops = 0;
     if (is_loading) {
       for (; ops < num_ops; ++ops) {
         wl->DoInsert(*db);
       }
     } else {
-      db->Active();
       for (; ops < num_ops; ++ops) {
         if (wl->is_stop_requested()) {
           break;
         }
         wl->DoTransaction(*db);
       }
-      db->Inactive();
     }
 
     if (cleanup_db) {

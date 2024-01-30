@@ -36,7 +36,7 @@ DB::Status BasicDB::Read(const std::string &table, const std::string &key,
   return kOK;
 }
 
-DB::Status BasicDB::Scan(const std::string &table, const std::string &key, int len,
+DB::Status BasicDB::Scan(const std::string &table, const std::string &key, long len,
                          const std::vector<std::string> *fields,
                          std::vector<std::vector<Field>> &result) {
   std::lock_guard<std::mutex> lock(mutex_);
