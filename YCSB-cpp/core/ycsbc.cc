@@ -168,10 +168,10 @@ int main(const int argc, const char* argv[]) {
           props.GetProperty(ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY,
                             "0")));
       std::chrono::seconds maxexecutiontime = std::chrono::seconds(
-          stol(props.GetProperty("maxexecutiontime." + std::to_string(i),
+          stoi(props.GetProperty("maxexecutiontime." + std::to_string(i),
                                  props.GetProperty("maxexecutiontime", "0"))));
       std::chrono::seconds sleepafterload = std::chrono::seconds(
-          stol(props.GetProperty("sleepafterload." + std::to_string(i),
+          stoi(props.GetProperty("sleepafterload." + std::to_string(i),
                                  props.GetProperty("sleepafterload", "0"))));
       if (i < total_ops % num_threads) {
         thread_ops++;

@@ -35,7 +35,7 @@ class HitRatioMaximization : public ControlAlgorithm {
   Cache* cache = NULL;
   std::shared_ptr<spdlog::logger> m_logger;
   Status m_status{};
-  double m_max{0};
+  uint64_t m_max{0};
   std::unordered_map<pid_t, tk::spline> m_mrcs{};
   const gsl_rng_type* T;
   gsl_rng* r;
@@ -71,9 +71,7 @@ class HitRatioMaximization : public ControlAlgorithm {
         cache_sizes.reserve(pool.mrc.size());
         std::vector<double> miss_rates;
         miss_rates.reserve(pool.mrc.size());
-        m_logger->info("pool #{}: objectSize={}", id, pool.meanObjectSize);
         for (auto const& [cs, mr] : pool.mrc) {
-          m_logger->info("pool #{}: {}, {}", id, cs, mr);
           cache_sizes.push_back(cs * pool.meanObjectSize);
           miss_rates.push_back(mr);
         }
@@ -97,16 +95,15 @@ class HitRatioMaximization : public ControlAlgorithm {
         });
 
     ctx.m_pool_configs.clear();
-    if (number_of_active_not_warming_pools > 1) {
-      for (auto const& [id, pool] : m_status) {
-        if (is_active_not_warming(pool)) {
-          ctx.m_pool_configs[id].currentPartitioning =
-              tenants_left_or_joined ? m_max / number_of_active_pools
-                                     : m_status[id].usedMem;
-          ctx.m_pool_configs[id].partitioning =
-              ctx.m_pool_configs[id].currentPartitioning;
-          ctx.m_pool_configs[id].MRC = std::move(m_mrcs[id]);
-        }
+    for (auto const& [id, pool] : m_status) {
+      m_logger->info("{}: {} {}", id, pool.isActive ? "O" : "X", pool.usedMem);
+      if (is_active_not_warming(pool)) {
+        ctx.m_pool_configs[id].currentPartitioning =
+            tenants_left_or_joined ? m_max / number_of_active_pools
+                                   : m_status[id].usedMem;
+        ctx.m_pool_configs[id].partitioning =
+            ctx.m_pool_configs[id].currentPartitioning;
+        ctx.m_pool_configs[id].MRC = std::move(m_mrcs[id]);
       }
 
       gsl_siman_params_t params = {

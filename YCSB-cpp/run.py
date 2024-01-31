@@ -29,10 +29,11 @@ workloads = ['workloadc']
 
 # Benchmark settings
 ycsb = {
-    'sleepafterload' : 60,
-    'operationcount' : 100_000_000,
-    'recordcount': 4_000_000,
-    'cachelib.cachesize': 400_000_000, # in bytes
+    'sleepafterload' : 10,
+    'maxexecutiontime' : 100,
+    'operationcount' : 1_000_000_000,
+    'recordcount': 2_000_000,
+    'cachelib.cachesize': 200_000_000, # in bytes
     'status.interval': 1,
     'readallfields': 'false',
     'fieldcount' : 1,
@@ -68,7 +69,7 @@ for worker in range(threads):
     ycsb[f'insertstart.{worker}'] = start*fraction_size
     ycsb[f'request_key_domain_start.{worker}'] = start*fraction_size
     ycsb[f'request_key_domain_end.{worker}'] = end*fraction_size-1
-    ycsb[f'operationcount.{worker}'] = priorities[worker]*(ycsb['operationcount'] // sum(priorities))
+#    ycsb[f'operationcount.{worker}'] = priorities[worker]*(ycsb['operationcount'] // sum(priorities))
     ycsb[f'sleepafterload.{worker}'] = worker*ycsb['sleepafterload']
     start = end
 ycsb[f'request_key_domain_end.{threads-1}'] += ycsb['recordcount'] - fraction_size*sum(priorities)
@@ -81,23 +82,30 @@ load_setup = {
 setups = {
     'CacheLib' : {
         'runs' : runs,
-        'enableController' : False,
         'result_dir': f'{results_dir}/cachelib',
         'ycsb_config' : ycsb
     },
     'CacheLib-Optimizer' : {
         'runs' : runs,
-        'enableController' : False,
         'result_dir' : f'{results_dir}/cachelib_optimizer',
         'ycsb_config' : {
             'cachelib.pool_optimizer': 'on',
             **ycsb
         },
     },
-    'CacheLib-Holpaca' : {
+    'CacheLib-Holpaca (Hit Ratio Maximization)' : {
         'runs' : runs,
-        'enableController' : True,
-        'result_dir': f'{results_dir}/cachelib_holpaca',
+        'controllerArgs': '1000 hit_ratio_maximization',
+        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization',
+        'ycsb_config' : {
+            'cachelib.holpaca': 'on',
+            **ycsb
+        }
+    },
+    'CacheLib-Holpaca (Hit Ratio Maximization with QoS guarantees)' : {
+        'runs' : runs,
+        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.2',
+        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_qos',
         'ycsb_config' : {
             'cachelib.holpaca': 'on',
             **ycsb
@@ -123,9 +131,9 @@ def runBenchmark(workload, settings, output_file):
     print('\tCleaning heap')
     subprocess.call([util_script, 'clean-heap'], stdout=subprocess.DEVNULL)
     controller_pid = None
-    if settings['enableController']:
+    if 'controllerArgs' in settings:
         print('\tStarting controller')
-        controller_pid = subprocess.Popen(f"{project_source_dir}/../build-holpaca/bin/controller 1000 hit_ratio_maximization", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid).pid
+        controller_pid = subprocess.Popen(f"{project_source_dir}/../build-holpaca/bin/controller {settings['controllerArgs']}", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid).pid
     print(f'\tRunning: {command}')
     subprocess.run(command, shell=True, text=True, stdout=output_file)
     if controller_pid is not None:
