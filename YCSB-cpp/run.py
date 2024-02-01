@@ -18,22 +18,21 @@ scripts_dir = '.'
 util_script = f'{scripts_dir}/utils.sh'
 
 results_dir = f'{workspace}/profiling_{datetime.now().strftime("%m-%d-%H-%M-%S")}'
-threads = 4
-runs = 3
-load = True
 db = f'{project_source_dir}/db'
 db_backup = f'{project_source_dir}/db_backup'
 
 workloads_dir = f'{workspace}/workloads'
 workloads = ['workloadc']
+threads = 4
+runs = 3
 
 # Benchmark settings
 ycsb = {
     'sleepafterload' : 120,
     'maxexecutiontime' : 600,
     'operationcount' : 1_000_000_000,
-    'recordcount': 2_000_000,
-    'cachelib.cachesize': 200_000_000, # in bytes
+    'recordcount': 20_000_000,
+    'cachelib.cachesize': 2_000_000_000, # in bytes
     'status.interval': 1,
     'readallfields': 'false',
     'fieldcount' : 1,
@@ -58,6 +57,7 @@ ycsb = {
     'zipfian_const.2' : '0.7',
     'requestdistribution.3' : 'zipfian',
     'zipfian_const.3' : '0.99',
+    'cachelib.trail_hits_tracking': 'off',
 }
 # Proportional Share
 priorities = [1, 1, 1, 1]
@@ -74,75 +74,78 @@ for worker in range(threads):
     start = end
 ycsb[f'request_key_domain_end.{threads-1}'] += ycsb['recordcount'] - fraction_size*sum(priorities)
 
-
-load_setup = {
-    'cachelib.trail_hits_tracking': 'off',
-    **ycsb   
-}
 setups = {
     'CacheLib' : {
-        'runs' : runs,
-        'result_dir': f'{results_dir}/cachelib',
-        'ycsb_config' : ycsb
+        'title': 'CacheLib',
+        'resultsDir': f'{results_dir}/cachelib',
+        'overrideConfigs' : {}
     },
     'CacheLib-Optimizer' : {
-        'runs' : runs,
-        'result_dir' : f'{results_dir}/cachelib_optimizer',
-        'ycsb_config' : {
+        'title': 'CacheLib-Optimizer',
+        'resultsDir' : f'{results_dir}/cachelib_optimizer',
+        'overrideConfigs' : {
             'cachelib.pool_optimizer': 'on',
-            **ycsb
+            'cachelib.trail_hits_tracking': 'on',
         },
     },
     'CacheLib-Holpaca (HR Maximization)' : {
-        'runs' : runs,
         'controllerArgs': '1000 hit_ratio_maximization',
-        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization',
-        'ycsb_config' : {
+        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization',
+        'overrideConfigs' : {
             'cachelib.holpaca': 'on',
-            **ycsb
+            'cachelib.trail_hits_tracking': 'on',
         }
     },
-    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
-        'runs' : runs,
+    'CacheLib-Holpaca (HR Maximization with Moderate QoS guarantees)' : {
         'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.2',
-        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_moderate_qos',
-        'ycsb_config' : {
+        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_moderate_qos',
+        'overrideConfigs' : {
             'cachelib.holpaca': 'on',
-            **ycsb
+            'cachelib.trail_hits_tracking': 'on',
         }
     },
-    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
-        'runs' : runs,
+    'CacheLib-Holpaca (HR Maximization with Impossible QoS guarantees)' : {
         'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0',
-        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_impossible_qos',
-        'ycsb_config' : {
+        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_impossible_qos',
+        'overrideConfigs' : {
             'cachelib.holpaca': 'on',
-            **ycsb
+            'cachelib.trail_hits_tracking': 'on',
         }
     },
-    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
-        'runs' : runs,
+    'CacheLib-Holpaca (HR Maximization with Easy QoS guarantees)' : {
         'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.1',
-        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_easy_qos',
-        'ycsb_config' : {
+        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_easy_qos',
+        'overrideConfigs' : {
             'cachelib.holpaca': 'on',
-            **ycsb
+            'cachelib.trail_hits_tracking': 'on',
         }
     },
-    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
-        'runs' : runs,
+    'CacheLib-Holpaca (HR Maximization with Hard QoS guarantees)' : {
         'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.5',
-        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_hard_qos',
-        'ycsb_config' : {
+        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_hard_qos',
+        'overrideConfigs' : {
             'cachelib.holpaca': 'on',
-            **ycsb
+            'cachelib.trail_hits_tracking': 'on',
         }
     },
 }
 
+config = {
+    'ycsb': ycsb,
+    'runs': runs,
+    'threads': threads,
+    'setups': setups,
+    'load': True,
+    'load_config': {
+        **ycsb,
+        'rocksdb.dbname': db_backup,
+        'rocksdb.destroy': 'true'
+    },
+    'workloads': workloads,
+    'phases': [ycsb['sleepafterload']*i for i in range(threads)] + [ycsb['sleepafterload']*i + ycsb['maxexecutiontime'] for i in range(threads)]
+}
+
 def loadDB(workload, settings):
-    settings['rocksdb.dbname'] = db_backup
-    settings['rocksdb.destroy'] = 'true'
     command = f'{executable_dir}/ycsb -load -db cachelib -P {workloads_dir}/{workload} -s -threads {settings["threadcount"]} {" ".join([f"-p {k}={v}" for k,v in settings.items()])}'
     print(f'[LOAD] Running: {command}')
     subprocess.run(command, shell=True)
@@ -153,7 +156,7 @@ def runBenchmark(workload, settings, output_file):
     if os.path.exists(db):
         shutil.rmtree(db)
     shutil.copytree(db_backup, db)
-    ycsb_settings = settings['ycsb_config']
+    ycsb_settings = {**ycsb, **settings['overrideConfigs']}
     command = f'systemd-run --scope -p MemoryMax={ycsb_settings["cachelib.cachesize"]+20_000_000} --user {executable_dir}/ycsb -run -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in ycsb_settings.items()])}'
     print('\tCleaning heap')
     subprocess.call([util_script, 'clean-heap'], stdout=subprocess.DEVNULL)
@@ -167,23 +170,21 @@ def runBenchmark(workload, settings, output_file):
         print('\tKilling controller')
         os.killpg(os.getpgid(controller_pid), signal.SIGTERM)
 
-
 os.mkdir(results_dir)
-
 report = open(f'{results_dir}/config.json', 'wt')
-report.write(json.dumps(setups, indent=2))
+report.write(json.dumps(config, indent=2))
 report.close()
 
 os.system('killall -9 controller') # Kill all controller instances to avoid coordination issues
 for workload in workloads:
-    if load:
-        loadDB(workload, load_setup)
+    if config['load']:
+        loadDB(workload, config['load_config'])
     for setup, settings in setups.items():
-        for run in range(settings['runs']):
-            print(f'[WORKLOAD: {workload}] [SETUP: {setup}] [RUN: {run+1}/{settings["runs"]}] ')
-            dir = f'{settings["result_dir"]}/{run}'
-            settings['ycsb_config']['cachelib.tracker'] = f'{dir}/mem.txt'
+        for run in range(runs):
+            print(f'[WORKLOAD: {workload}] [SETUP: {setup}] [RUN: {run+1}/{runs}] ')
+            dir = f'{settings["resultsDir"]}/{run}'
             os.makedirs(dir, exist_ok=True)
+            settings['overrideConfigs']['cachelib.tracker'] = f'{dir}/mem.txt'
             with open(f'{dir}/ycsb.txt', 'w') as f:
                 runBenchmark(workload, settings, f)
                 f.close()
