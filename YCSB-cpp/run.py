@@ -19,7 +19,7 @@ util_script = f'{scripts_dir}/utils.sh'
 
 results_dir = f'{workspace}/profiling_{datetime.now().strftime("%m-%d-%H-%M-%S")}'
 threads = 4
-runs = 1
+runs = 3
 load = True
 db = f'{project_source_dir}/db'
 db_backup = f'{project_source_dir}/db_backup'
@@ -29,8 +29,8 @@ workloads = ['workloadc']
 
 # Benchmark settings
 ycsb = {
-    'sleepafterload' : 10,
-    'maxexecutiontime' : 100,
+    'sleepafterload' : 120,
+    'maxexecutiontime' : 600,
     'operationcount' : 1_000_000_000,
     'recordcount': 2_000_000,
     'cachelib.cachesize': 200_000_000, # in bytes
@@ -53,11 +53,11 @@ ycsb = {
     'insertorder': 'nothashed',
     'requestdistribution.0' : 'uniform',
     'requestdistribution.1' : 'zipfian',
-    'zipfian_const.1' : '0.99', 
+    'zipfian_const.1' : '0.6', 
     'requestdistribution.2' : 'zipfian',
     'zipfian_const.2' : '0.7',
     'requestdistribution.3' : 'zipfian',
-    'zipfian_const.3' : '0.6',
+    'zipfian_const.3' : '0.99',
 }
 # Proportional Share
 priorities = [1, 1, 1, 1]
@@ -93,7 +93,7 @@ setups = {
             **ycsb
         },
     },
-    'CacheLib-Holpaca (Hit Ratio Maximization)' : {
+    'CacheLib-Holpaca (HR Maximization)' : {
         'runs' : runs,
         'controllerArgs': '1000 hit_ratio_maximization',
         'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization',
@@ -102,10 +102,37 @@ setups = {
             **ycsb
         }
     },
-    'CacheLib-Holpaca (Hit Ratio Maximization with QoS guarantees)' : {
+    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
         'runs' : runs,
         'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.2',
-        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_qos',
+        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_moderate_qos',
+        'ycsb_config' : {
+            'cachelib.holpaca': 'on',
+            **ycsb
+        }
+    },
+    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
+        'runs' : runs,
+        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0',
+        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_impossible_qos',
+        'ycsb_config' : {
+            'cachelib.holpaca': 'on',
+            **ycsb
+        }
+    },
+    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
+        'runs' : runs,
+        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.1',
+        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_easy_qos',
+        'ycsb_config' : {
+            'cachelib.holpaca': 'on',
+            **ycsb
+        }
+    },
+    'CacheLib-Holpaca (HR Maximization with QoS guarantees)' : {
+        'runs' : runs,
+        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.5',
+        'result_dir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_hard_qos',
         'ycsb_config' : {
             'cachelib.holpaca': 'on',
             **ycsb

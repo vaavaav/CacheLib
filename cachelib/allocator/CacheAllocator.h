@@ -2258,9 +2258,9 @@ class CacheAllocator : public CacheBase,
   void activate(PoolId pid) {
     std::lock_guard<std::mutex> lock(active_pools_mutex);
     if (auto const& x = active_pools.find(pid); x != active_pools.end()) {
-      x->second = 3;
+      x->second = 1;
     } else {
-      active_pools.insert({pid, 3});
+      active_pools.insert({pid, 1});
     }
   }
 
@@ -2277,9 +2277,14 @@ class CacheAllocator : public CacheBase,
   size_t size() { return this->getCacheMemoryStats().ramCacheSize; }
 
   std::set<PoolId> getActivePools() override {
-    for (auto const& [pid, _] : active_pools) {
+    auto result = getActivePoolsAux();
+    for (auto const& pid : result) {
       deactive(pid);
     }
+    return result;
+  }
+
+  std::set<PoolId> getActivePoolsAux() {
     std::set<PoolId> result;
     {
       std::lock_guard<std::mutex> guard(active_pools_mutex);

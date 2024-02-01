@@ -17,8 +17,8 @@ plt.rcParams['font.size'] = 18
 latencies = ['Min', 'Max', 'Avg', '90', '99', '99.9', '99.99']
 
 def getHitRatio(profilePath: str, runs: int, threads: int):
-    hits = [[] for _ in range(threads)] # last one is the global
-    misses = [[] for _ in range(threads)]
+    hits = [[0.0] for _ in range(threads)] # last one is the global
+    misses = [[0.0] for _ in range(threads)]
     files = [open(f'{profilePath}/{run}/ycsb.txt', 'r') for run in range(runs)]
     for lineFiles in zip(*files):
         for i in range(threads):
@@ -39,15 +39,14 @@ def getHitRatio(profilePath: str, runs: int, threads: int):
     return results
 
 def getMemory(profilePath: str, runs: int, threads: int):
-    results = [[] for _ in range(threads)]
+    results = [[0.0] for _ in range(threads)]
     files = [open(f'{profilePath}/{run}/mem.txt', 'r') for run in range(runs)]
     for lineFiles in zip(*files):
         for i in range(threads):
             memory = 0 
             for line in lineFiles:
-                if result := re.search(rf'pool-{i} {{([^{{}}]*)}}', line):
-                    if memoryValue := re.search(r'usedMem=(\d+)', result.group(1)):
-                        memory += int(memoryValue.group(1))
+                if result := re.search(rf'pool-{i} {{[^{{}}]*usedMem=(\d+)', line):
+                    memory += int(result.group(1))
             results[i].append(memory / runs)
     return results
 
@@ -71,7 +70,7 @@ def getThroughput(profilePath: str, runs: int, threads: int):
 
 def getHitLatencies(profilePath: str, runs: int, threads: int):
     global latencies
-    results = {l:[[] for _ in range(threads+1)] for l in latencies }
+    results = {l:[[0.0] for _ in range(threads+1)] for l in latencies }
     files = [open(f'{profilePath}/{run}/ycsb.txt', 'r') for run in range(runs)]
     for lineFiles in zip(*files):
         for l in latencies:
@@ -88,33 +87,6 @@ def getHitLatencies(profilePath: str, runs: int, threads: int):
             results[l][-1].append(globalLatency / runs)
     return results
 
-def plotHitRatioStackedWithLatencies(name: str, hitRatio, latencies, threads: int, outputPath: str, phases):
-    for l in latencies:
-        fig, ax = plt.subplots()
-        axes = [ax, ax.twinx()]
-        fig.set_size_inches(20, 10)
-        fig.text(s=name, x=0.5, y=0.93, fontsize=30, ha='center', va='center')
-        fig.text(s=f'Hit ratio and ({l}) lookup latency per pool', x=0.5, y=0.90, fontsize=20, ha='center', va='center')
-        df = pd.DataFrame(latencies[l]).transpose()
-        axes[0].stackplot(df.index, df.values.T, alpha=0.25)
-        axes[0].set_ylim(0, max(df.cumsum(axis=1)[threads-1]))
-        axes[0].set_ylabel(f'{l} Latency (ms)')
-        axes[0].set_xlabel('Time (s)')
-        axes[0].set_xlim(0, len(df.index))
-        for p in phases:
-            axes[0].axvline(p, color='gray', linestyle='--', linewidth=0.25)
-        df = pd.DataFrame([hitRatio[i] for i in range(threads)]).transpose()
-        axes[0].set_yticks(axes[0].get_yticks(), ('{:.3f}'.format(tick/1000).rstrip('0').rstrip('.') for tick in axes[0].get_yticks()))
-        df = df.cumsum(axis=1)
-        axes[1].set_ylim(0, max(df[threads-1]))
-        axes[1].set_ylabel('Hit Ratio')
-        axes[1].set_xlabel('Time (s)')
-        axes[1].set_xlim(0, len(df.index))
-        defaultColors = reversed(plt.rcParams['axes.prop_cycle'].by_key()['color'][:threads])
-        for i in reversed(range(threads)):
-            axes[1].plot(df.index, df[i], color=next(defaultColors), linewidth=3.0)
-        fig.savefig(f'{outputPath}/hit-ratio-stacked-with-latency-{l.lower()}.pdf', bbox_inches='tight', format='pdf')
-        plt.close()
 
 def plotHitRatioStacked(name: str, results, threads: int, outputPath: str, phases):
     df = pd.DataFrame([results[i] for i in range(threads)]).transpose()
@@ -179,86 +151,79 @@ def plotMemoryStacked(name: str, results, cacheSize, threads: int, outputPath: s
     plt.savefig(f'{outputPath}/memory-stacked.pdf', bbox_inches='tight', format='pdf')
     plt.close()
 
-def plotHitRatioStackedWithMemory(name: str, hitRatio, memory, cacheSize, threads: int, outputPath: str, phases):
+
+def plotHitRatioStackedWith(name: str, hitRatio, otherMetricName: str, otherMetricLabel: str, otherMetric, otherMetricMax, threads: int, outputPath: str, phases, totalExecutionTime, otherMetricYTicksFormatter = None):
     fig, ax = plt.subplots()
     axes = [ax, ax.twinx()]
     fig.set_size_inches(20, 10)
     fig.text(s=name, x=0.5, y=0.93, fontsize=30, ha='center', va='center')
-    fig.text(s='Hit ratio and partition size per Pool', x=0.5, y=0.90, fontsize=20, ha='center', va='center')
-    df = pd.DataFrame([memory[i] for i in range(threads)]).transpose()
+    fig.text(s='Hit ratio and {otherMetricName} per pool', x=0.5, y=0.90, fontsize=20, ha='center', va='center')
+    df = pd.DataFrame(otherMetric).transpose()
     axes[0].stackplot(df.index, df.values.T, alpha=0.25)
-    axes[0].set_ylim(0, cacheSize)
-    axes[0].set_ylabel('Memory (GB)')
+    axes[0].set_ylim(0, otherMetricMax)
+    axes[0].set_ylabel(otherMetricLabel)
     axes[0].set_xlabel('Time (s)')
-    axes[0].set_xlim(0, len(df.index))
+    axes[0].set_xlim(0, totalExecutionTime)
+    if otherMetricYTicksFormatter is not None:
+        axes[0].yaxis.set_major_formatter(otherMetricYTicksFormatter)
     for p in phases:
         axes[0].axvline(p, color='gray', linestyle='--', linewidth=0.25)
     df = pd.DataFrame([hitRatio[i] for i in range(threads)]).transpose()
-    axes[0].set_yticks(axes[0].get_yticks(), ('{:.2f}'.format(tick/1_000_000_000).rstrip('0').rstrip('.') for tick in axes[0].get_yticks()))
     df = df.cumsum(axis=1)
     axes[1].set_ylim(0, max(df[threads-1]))
     axes[1].set_ylabel('Hit Ratio')
     axes[1].set_xlabel('Time (s)')
-    axes[1].set_xlim(0, len(df.index))
+    axes[1].set_xlim(0, totalExecutionTime)
     defaultColors = reversed(plt.rcParams['axes.prop_cycle'].by_key()['color'][:threads])
     for i in reversed(range(threads)):
         axes[1].plot(df.index, df[i], color=next(defaultColors), linewidth=3.0)
-    fig.savefig(f'{outputPath}/hit-ratio-stacked-with-memory.pdf', bbox_inches='tight', format='pdf')
+    fig.savefig(f'{outputPath}/hit-ratio-stacked-with-{otherMetricName}.pdf', bbox_inches='tight', format='pdf')
     plt.close()
 
-def plotHitRatioTenantsWithMemory(name: str, hitRatio, memory, cacheSize, threads: int, outputPath: str, phases, totalExecutionTime):
+def plotHitRatioWith(implementationName: str, hitRatio, otherMetricName: str, otherMetricLabel: str, otherMetric, otherMetricMax, threads: int, outputPath: str, phases, totalExecutionTime, otherMetricYTicksFormatter = None):
     fig, ax = plt.subplots(threads, 1, sharex=True)
     fig.subplots_adjust(hspace=0.25, wspace=0.1)
-    fig.set_size_inches(20, 10)
-    fig.text(s=name, x=0.5, y=0.93, fontsize=30, ha='center', va='center')
-    fig.text(s='Hit ratio and partition size per Pool', x=0.5, y=0.90, fontsize=20, ha='center', va='center')
-    mem = pd.DataFrame([memory[i] for i in range(threads)]).transpose()
+    fig.set_size_inches(25, 15)
+    fig.text(s=implementationName, x=0.5, y=0.93, fontsize=30, ha='center', va='center')
+    fig.text(s=f'Hit ratio and {otherMetricName} per Pool', x=0.5, y=0.90, fontsize=20, ha='center', va='center')
+    ometric = pd.DataFrame([otherMetric[i] for i in range(threads)]).transpose()
     hr = pd.DataFrame([hitRatio[i] for i in range(threads)]).transpose()
-    fig.supxlabel('Time (s)')
-    fig.supylabel('Memory (GB)', x=0.1)
-    fig.text(0.96, 0.5, 'Hit Ratio', va='center', rotation='vertical', fontsize=20)
+    fig.text(0.5, 0.07, 'Time (s)', va='center', fontsize=25)
+    fig.text(0.07, 0.5, otherMetricLabel, va='center', rotation='vertical', fontsize=25)
+    fig.text(0.93, 0.5, 'Hit Ratio', va='center', rotation='vertical', fontsize=25)
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color'][:threads]
     for i in range(threads):
-        ax[i].set_ylim(0, cacheSize)
-        ax[i].set_xlim(0, len(mem.index))
-        ax[i].fill_between(mem.index, 0, mem.values.T[threads-(i+1)], alpha=0.25, color=colors[threads-(i+1)])
-        ax[i].set_yticks(ax[i].get_yticks(), ('{:.2f}'.format(tick/1_000_000_000).rstrip('0').rstrip('.') for tick in ax[i].get_yticks()))
+        ax[i].set_ylim(0, otherMetricMax)
+        ax[i].set_xlim(0, totalExecutionTime)
+        ax[i].locator_params(axis='y', nbins=4) 
+        ax[i].fill_between(ometric.index, 0, ometric.values.T[threads-(i+1)], alpha=0.25, color=colors[threads-(i+1)])
+        if otherMetricYTicksFormatter is not None:
+            ax[i].yaxis.set_major_formatter(otherMetricYTicksFormatter)
         for p in phases:
             ax[i].axvline(p, color='gray', linestyle='--', linewidth=0.25)
         ax2 = ax[i].twinx()
+        ax2.locator_params(axis='y', nbins=4) 
         ax2.plot(hr.index, hr.values.T[threads-(i+1)], color = colors[threads-(i+1)])
+        for p in (np.arange(0, 1.01, 1/4)):
+            ax2.axhline(p, color='gray', linestyle='--', linewidth=0.25)
         ax2.set_ylim(0, 1)
         ax2.set_xlim(0, totalExecutionTime)
-    fig.savefig(f'{outputPath}/hit-ratio-with-memory.pdf', format='pdf')
+    fig.savefig(f'{outputPath}/hit-ratio-with-{otherMetricName}.pdf', format='pdf', bbox_inches='tight', pad_inches=0.0)
+    fig.tight_layout()
     plt.close()
 
-def plotHitRatioStackedWithThroughput(name: str, hitRatio, throughput, threads: int, outputPath: str, phases):
-    global colors
-    fig, ax = plt.subplots()
-    axes = [ax, ax.twinx()]
-    fig.set_size_inches(20, 10)
-    fig.text(s=name, x=0.5, y=0.93, fontsize=30, ha='center', va='center')
-    fig.text(s='Hit ratio and throughput per Pool', x=0.5, y=0.90, fontsize=20, ha='center', va='center')
-    df = pd.DataFrame([throughput[i] for i in range(threads)]).transpose()
-    axes[0].stackplot(df.index, df.values.T, alpha=0.25)
-    axes[0].set_ylim(0, max(df.cumsum(axis=1)[threads-1]))
-    axes[0].set_xlim(0, len(df.index))
-    axes[0].set_ylabel('Throughput (ops/s)')
-    axes[0].set_xlabel('Time (s)')
-    for p in phases:
-        axes[0].axvline(p, color='gray', linestyle='--', linewidth=0.25)
-    df = pd.DataFrame([hitRatio[i] for i in range(threads)]).transpose()
-    df = df.cumsum(axis=1)
-    axes[1].set_ylim(0, max(df[threads-1]))
-    axes[1].set_xlim(0, len(df.index))
-    axes[1].set_ylabel('Hit Ratio')
-    axes[1].set_xlabel('Time (s)')
-    defaultColors = reversed(plt.rcParams['axes.prop_cycle'].by_key()['color'][:threads])
-    for i in reversed(range(threads)):
-        axes[1].plot(df.index, df[i], color=next(defaultColors), linewidth=3.0)
-    fig.savefig(f'{outputPath}/hit-ratio-stacked-with-throughput.pdf', bbox_inches='tight', format='pdf')
-    plt.close()
+def plotHitRatioWithMemory(name: str, hitRatio, memory, cacheSize, threads: int, outputPath: str, phases, totalExecutionTime):
+    plotHitRatioWith(name, hitRatio, 'memory', 'Memory (GB)', memory, cacheSize, threads, outputPath, phases, totalExecutionTime, lambda tick,_: '{:.2f}'.format(tick/1_000_000_000).rstrip('0').rstrip('.'))
+    plotHitRatioStackedWith(name, hitRatio, 'memory', 'Memory (GB)', memory, cacheSize, threads, outputPath, phases, totalExecutionTime, lambda tick,_: '{:.2f}'.format(tick/1_000_000_000).rstrip('0').rstrip('.'))
 
+def plotHitRatioWithThroughput(name: str, hitRatio, throughput, threads: int, outputPath: str, phases, totalExecutionTime):
+    plotHitRatioWith(name, hitRatio, 'throughput', 'Throughput (ops/s)', throughput, max([max(throughput[i]) for i in range(threads)]), threads, outputPath, phases, totalExecutionTime)
+    plotHitRatioStackedWith(name, hitRatio, 'throughput', 'Throughput (ops/s)', throughput, max(np.array(throughput).sum(axis=0)), threads, outputPath, phases, totalExecutionTime)
+
+def plotHitRatioWithLatencies(name: str, hitRatio, latencies, threads: int, outputPath: str, phases, totalExecutionTime):
+    for l in latencies:
+        plotHitRatioWith(name, hitRatio, f'latency-{l.lower()}', f'{l} Latency (ms)', latencies[l], max([max(latencies[l][i]) for i in range(threads)]), threads, outputPath, phases, totalExecutionTime, lambda tick, _: '{:.2f}'.format(tick/1_000).rstrip('0').rstrip('.'))
+        plotHitRatioStackedWith(name, hitRatio, f'latency-{l.lower()}', f'{l} Latency (ms)', latencies[l], max(np.array(latencies[l]).sum(axis=0)), threads, outputPath, phases, totalExecutionTime, lambda tick, _: '{:.2f}'.format(tick/1_000).rstrip('0').rstrip('.'))
 
 def main(argv, argc):
     global config, latencies
@@ -276,13 +241,13 @@ def main(argv, argc):
             runs = int(config[implementation]['runs'])
             totalExecutionTime = int(config[implementation]['ycsb_config']['maxexecutiontime']) + int(config[implementation]['ycsb_config'][f'sleepafterload.{threads-1}']) # assuming monotonic sleepafterload
             hr = getHitRatio(resultsDir, runs, threads)
-            hr = [hr[i][:totalExecutionTime+1] for i in range(threads+1)]
+            hr = [hr[i][:totalExecutionTime] for i in range(threads+1)]
             m = getMemory(resultsDir, runs, threads)
-            m = [m[i][:totalExecutionTime+1] for i in range(threads)]
+            m = [m[i][-(totalExecutionTime+1):-1] for i in range(threads)]
             t = getThroughput(resultsDir, runs, threads)
-            t = [t[i][:totalExecutionTime+1] for i in range(threads+1)]
+            t = [t[i][:totalExecutionTime] for i in range(threads+1)]
             ls = getHitLatencies(resultsDir, runs, threads)
-            ls = {l:[ls[l][i][:totalExecutionTime+1] for i in range(threads+1)] for l in ls}
+            ls = {l:[ls[l][i][:totalExecutionTime] for i in range(threads+1)] for l in ls}
             globalHitRatio[implementation] = hr[-1]
             globalThroughput[implementation] = t[-1]
             for l in ls:
@@ -297,10 +262,9 @@ def main(argv, argc):
                 phases.append(phases[i] + int(config[implementation]['ycsb_config']['maxexecutiontime']))
             plotHitRatioStacked(implementation, hr, threads, resultsDir, phases)
             plotMemoryStacked(implementation, m, cacheSize, threads, resultsDir, phases)
-            plotHitRatioStackedWithMemory(implementation, hr, m, cacheSize, threads, resultsDir, phases)
-            plotHitRatioStackedWithThroughput(implementation, hr, t, threads, resultsDir, phases)
-            plotHitRatioStackedWithLatencies(implementation, hr, ls, threads, resultsDir, phases)
-            plotHitRatioTenantsWithMemory(implementation, hr, m, cacheSize, threads, resultsDir, phases, totalExecutionTime)
+            plotHitRatioWithMemory(implementation, hr, m, cacheSize, threads, resultsDir, phases, totalExecutionTime)
+            plotHitRatioWithThroughput(implementation, hr, t, threads, resultsDir, phases, totalExecutionTime)
+            plotHitRatioWithLatencies(implementation, hr, ls, threads, resultsDir, phases, totalExecutionTime)
         plotGlobalHitRatio( globalHitRatio, f'{workspace}/{profile_dir}', phases)
         plotGlobalLatencies( globalLatencies, f'{workspace}/{profile_dir}', phases)
         plotGlobalThroughput(globalThroughput, f'{workspace}/{profile_dir}', phases)
