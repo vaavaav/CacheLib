@@ -52,11 +52,11 @@ ycsb = {
     'insertorder': 'nothashed',
     'requestdistribution.0' : 'uniform',
     'requestdistribution.1' : 'zipfian',
-    'zipfian_const.1' : '0.6', 
+    'zipfian_const.1' : '0.7',
     'requestdistribution.2' : 'zipfian',
-    'zipfian_const.2' : '0.7',
+    'zipfian_const.2' : '0.9',
     'requestdistribution.3' : 'zipfian',
-    'zipfian_const.3' : '0.99',
+    'zipfian_const.3' : '1.2',
     'cachelib.trail_hits_tracking': 'off',
 }
 # Proportional Share
@@ -77,57 +77,57 @@ ycsb[f'request_key_domain_end.{threads-1}'] += ycsb['recordcount'] - fraction_si
 setups = {
     'CacheLib' : {
         'title': 'CacheLib',
-        'resultsDir': f'{results_dir}/cachelib',
+        'resultsDir': f'cachelib',
         'overrideConfigs' : {}
     },
     'CacheLib-Optimizer' : {
         'title': 'CacheLib-Optimizer',
-        'resultsDir' : f'{results_dir}/cachelib_optimizer',
+        'resultsDir' : f'cachelib_optimizer',
         'overrideConfigs' : {
             'cachelib.pool_optimizer': 'on',
             'cachelib.trail_hits_tracking': 'on',
         },
     },
-    'CacheLib-Holpaca (HR Maximization)' : {
+    'CacheLib-Holpaca' : {
         'controllerArgs': '1000 hit_ratio_maximization',
-        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization',
+        'resultsDir': f'cachelib_holpaca',
         'overrideConfigs' : {
             'cachelib.holpaca': 'on',
             'cachelib.trail_hits_tracking': 'on',
         }
     },
-    'CacheLib-Holpaca (HR Maximization with Moderate QoS guarantees)' : {
-        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.2',
-        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_moderate_qos',
-        'overrideConfigs' : {
-            'cachelib.holpaca': 'on',
-            'cachelib.trail_hits_tracking': 'on',
-        }
-    },
-    'CacheLib-Holpaca (HR Maximization with Impossible QoS guarantees)' : {
-        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0',
-        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_impossible_qos',
-        'overrideConfigs' : {
-            'cachelib.holpaca': 'on',
-            'cachelib.trail_hits_tracking': 'on',
-        }
-    },
-    'CacheLib-Holpaca (HR Maximization with Easy QoS guarantees)' : {
-        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.1',
-        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_easy_qos',
-        'overrideConfigs' : {
-            'cachelib.holpaca': 'on',
-            'cachelib.trail_hits_tracking': 'on',
-        }
-    },
-    'CacheLib-Holpaca (HR Maximization with Hard QoS guarantees)' : {
-        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.5',
-        'resultsDir': f'{results_dir}/cachelib_holpaca_hit_ratio_maximization_with_hard_qos',
-        'overrideConfigs' : {
-            'cachelib.holpaca': 'on',
-            'cachelib.trail_hits_tracking': 'on',
-        }
-    },
+#    'CacheLib-Holpaca (QoS: HR=0.2)' : {
+#        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.8',
+#        'resultsDir': f'cachelib_holpaca_moderate_qos',
+#        'overrideConfigs' : {
+#            'cachelib.holpaca': 'on',
+#            'cachelib.trail_hits_tracking': 'on',
+#        }
+#    },
+#    'CacheLib-Holpaca (QoS: HR=1)' : {
+#        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0',
+#        'resultsDir': f'cachelib_holpaca_impossible_qos',
+#        'overrideConfigs' : {
+#            'cachelib.holpaca': 'on',
+#            'cachelib.trail_hits_tracking': 'on',
+#        }
+#    },
+#    'CacheLib-Holpaca (QoS: HR=0.1)' : {
+#        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.9',
+#        'resultsDir': f'cachelib_holpaca_easy_qos',
+#        'overrideConfigs' : {
+#            'cachelib.holpaca': 'on',
+#            'cachelib.trail_hits_tracking': 'on',
+#        }
+#    },
+#    'CacheLib-Holpaca (QoS: HR=0.5)' : {
+#        'controllerArgs': '1000 hit_ratio_maximization_with_qos 1 0.5',
+#        'resultsDir': f'cachelib_holpaca_hard_qos',
+#        'overrideConfigs' : {
+#            'cachelib.holpaca': 'on',
+#            'cachelib.trail_hits_tracking': 'on',
+#        }
+#    },
 }
 
 config = {
@@ -151,13 +151,13 @@ def loadDB(workload, settings):
     subprocess.run(command, shell=True)
     print('[LOAD] Done')
 
-def runBenchmark(workload, settings, output_file):
+def runBenchmark(workload, settings, output_file, outputDir):
     print('\tLoading db backup')
     if os.path.exists(db):
         shutil.rmtree(db)
     shutil.copytree(db_backup, db)
     ycsb_settings = {**ycsb, **settings['overrideConfigs']}
-    command = f'systemd-run --scope -p MemoryMax={ycsb_settings["cachelib.cachesize"]+20_000_000} --user {executable_dir}/ycsb -run -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in ycsb_settings.items()])}'
+    command = f'systemd-run --scope -p MemoryMax={ycsb_settings["cachelib.cachesize"]*1.1} --user {executable_dir}/ycsb -run -db cachelib -P {workloads_dir}/{workload} -s -threads {threads} {" ".join([f"-p {k}={v}" for k,v in ycsb_settings.items()])}'
     print('\tCleaning heap')
     subprocess.call([util_script, 'clean-heap'], stdout=subprocess.DEVNULL)
     controller_pid = None
@@ -165,7 +165,9 @@ def runBenchmark(workload, settings, output_file):
         print('\tStarting controller')
         controller_pid = subprocess.Popen(f"{project_source_dir}/../build-holpaca/bin/controller {settings['controllerArgs']}", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid).pid
     print(f'\tRunning: {command}')
+    dstat_pid = subprocess.Popen(f'dstat -rcdgmn > {outputDir}/dstat.csv', shell=True, preexec_fn=os.setsid).pid
     subprocess.run(command, shell=True, text=True, stdout=output_file)
+    os.killpg(os.getpgid(dstat_pid), signal.SIGTERM)
     if controller_pid is not None:
         print('\tKilling controller')
         os.killpg(os.getpgid(controller_pid), signal.SIGTERM)
@@ -182,9 +184,9 @@ for workload in workloads:
     for setup, settings in setups.items():
         for run in range(runs):
             print(f'[WORKLOAD: {workload}] [SETUP: {setup}] [RUN: {run+1}/{runs}] ')
-            dir = f'{settings["resultsDir"]}/{run}'
+            dir = f'{results_dir}/{settings["resultsDir"]}/{run}'
             os.makedirs(dir, exist_ok=True)
             settings['overrideConfigs']['cachelib.tracker'] = f'{dir}/mem.txt'
             with open(f'{dir}/ycsb.txt', 'w') as f:
-                runBenchmark(workload, settings, f)
+                runBenchmark(workload, settings, f, dir)
                 f.close()

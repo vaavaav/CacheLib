@@ -6,9 +6,8 @@
 #include <holpaca/config.h>
 #include <holpaca/control_algorithm/control_algorithm.h>
 #include <holpaca/control_algorithm/hit_ratio_maximization.h>
+#include <holpaca/control_algorithm/hit_ratio_maximization_qos.h>
 #include <holpaca/control_algorithm/marginal_hits.h>
-#include <holpaca/control_algorithm/miss_rate_min.h>
-#include <holpaca/control_algorithm/miss_rate_min_qos.h>
 #include <holpaca/control_algorithm/proportional_share.h>
 #include <holpaca/control_plane/cache_proxy.h>
 #include <holpaca/data_plane/stage.h>
@@ -52,12 +51,11 @@ class Controller {
             ca = std::make_shared<HitRatioMaximization>(this->proxy);
           } else if (std::string(args[0]) ==
                      "hit_ratio_maximization_with_qos") {
-            ca = std::make_shared<MissRateMinQOS>(
+            ca = std::make_shared<HitRatioMaximizationQoS>(
                 this->proxy,
                 std::unordered_map<pid_t, double>{
-                    {strtol(args[1], NULL, 10), strtol(args[2], NULL, 10)}});
+                    {strtol(args[1], NULL, 10), strtod(args[2], NULL)}});
           } else {
-            std::cout << args[0] << std::endl;
             logger->error("Invalid control algorithm");
           }
           while (this->m_continue) {

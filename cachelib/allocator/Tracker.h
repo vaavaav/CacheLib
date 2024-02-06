@@ -17,6 +17,9 @@ class Tracker : public PeriodicWorker {
   // @param cache                 the cache interace
   Tracker(CacheBase& cache, std::string pathToFile) : cache_(cache) {
     log.open(pathToFile);
+    log << fmt::format("cacheSize: {}",
+                       cache_.getCacheMemoryStats().ramCacheSize)
+        << std::endl;
   }
 
   ~Tracker() override {
@@ -27,11 +30,15 @@ class Tracker : public PeriodicWorker {
  private:
   CacheBase& cache_;
   std::ofstream log;
-  long time{0};
+  std::chrono::_V2::system_clock::time_point time{
+      std::chrono::high_resolution_clock::now()};
 
   void work() override final {
     auto pools = cache_.getActivePools();
-    log << fmt::format("{}: ", time++);
+    log << fmt::format("{}: ",
+                       std::chrono::duration_cast<std::chrono::seconds>(
+                           std::chrono::high_resolution_clock::now() - time)
+                           .count());
     for (auto const& id : cache_.getPoolIds()) {
       auto pool_stats = cache_.getPoolStats(id);
       bool active = pools.find(id) != pools.end();

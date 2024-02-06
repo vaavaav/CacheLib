@@ -6,6 +6,7 @@
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
 //
 
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <ctime>
@@ -18,7 +19,6 @@
 
 #include "client.h"
 #include "core_workload.h"
-#include "countdown_latch.h"
 #include "db_factory.h"
 #include "measurements.h"
 #include "timer.h"
@@ -33,29 +33,25 @@ void ParseCommandLine(int argc,
                       ycsbc::utils::Properties& props);
 
 void StatusThread(std::vector<ycsbc::Measurements*>* measurements,
-                  CountDownLatch* latch,
-                  long interval) {
+                  std::atomic_bool* done,
+                  std::chrono::seconds interval = 1s) {
   using namespace std::chrono;
-  time_point<system_clock> start = system_clock::now();
-  bool done = false;
+  auto start = high_resolution_clock::now();
   while (1) {
-    time_point<system_clock> now = system_clock::now();
-    std::time_t now_c = system_clock::to_time_t(now);
-    duration<double> elapsed_time = now - start;
+    auto now = high_resolution_clock::now();
+    auto elapsed_time = duration_cast<std::chrono::seconds>(now - start);
 
-    std::cout << std::put_time(std::localtime(&now_c), "%F %T") << ' '
-              << static_cast<long long>(elapsed_time.count()) << " sec: ";
+    std::cout << elapsed_time.count() << " sec: ";
 
     for (long i = 0; i < measurements->size(); i++) {
       std::cout << "worker-" + std::to_string(i) + " { " +
                        measurements->at(i)->GetStatusMsg() + " } ";
     }
     std::cout << std::endl;
-
-    if (done) {
+    if (done->load()) {
       break;
     }
-    done = latch->AwaitFor(interval);
+    std::this_thread::sleep_until(now + 1s);
   };
 }
 
@@ -97,11 +93,12 @@ int main(const int argc, const char* argv[]) {
   }
 
   const bool show_status = (props.GetProperty("status", "false") == "true");
-  const int status_interval =
-      std::stoi(props.GetProperty("status.interval", "10"));
+  const std::chrono::seconds status_interval = std::chrono::seconds(
+      std::stoi(props.GetProperty("status.interval", "10")));
 
   // load phase
   if (do_load) {
+    std::atomic_bool done(false);
     const long total_ops =
         stol(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
 
@@ -112,7 +109,7 @@ int main(const int argc, const char* argv[]) {
     std::future<void> status_future;
     if (show_status) {
       status_future = std::async(std::launch::async, StatusThread,
-                                 &measurements, &latch, status_interval);
+                                 &measurements, &done, status_interval);
     }
     std::vector<std::future<long>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
@@ -122,7 +119,7 @@ int main(const int argc, const char* argv[]) {
       }
       client_threads.emplace_back(
           std::async(std::launch::async, ycsbc::ClientThread, 0s, 0s, i, dbs[i],
-                     wls[i], thread_ops, true, true, !do_transaction, &latch));
+                     wls[i], thread_ops, true, true, !do_transaction));
     }
     assert((int)client_threads.size() == num_threads);
 
@@ -132,6 +129,7 @@ int main(const int argc, const char* argv[]) {
       n.wait();
       sum += n.get();
     }
+    done.store(true);
     double runtime = timer.End();
 
     if (show_status) {
@@ -151,14 +149,14 @@ int main(const int argc, const char* argv[]) {
     const long total_ops =
         stol(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
 
-    CountDownLatch latch(num_threads);
+    std::atomic_bool done(false);
     ycsbc::utils::Timer<double> timer;
 
     timer.Start();
-    std::future<void> status_future;
+    std::thread status_thread;
     if (show_status) {
-      status_future = std::async(std::launch::async, StatusThread,
-                                 &measurements, &latch, status_interval);
+      status_thread =
+          std::thread(StatusThread, &measurements, &done, status_interval);
     }
     std::vector<std::future<long>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
@@ -179,7 +177,7 @@ int main(const int argc, const char* argv[]) {
       client_threads.emplace_back(
           std::async(std::launch::async, ycsbc::ClientThread, sleepafterload,
                      maxexecutiontime, i, dbs[i], wls[i], thread_ops, false,
-                     !do_load, true, &latch));
+                     !do_load, true));
     }
     assert((int)client_threads.size() == num_threads);
 
@@ -188,10 +186,11 @@ int main(const int argc, const char* argv[]) {
       assert(n.valid());
       sum += n.get();
     }
+    done.store(true);
     double runtime = timer.End();
 
     if (show_status) {
-      status_future.wait();
+      status_thread.join();
     }
 
     std::cout << "Run runtime(sec): " << runtime << std::endl;

@@ -20,15 +20,14 @@
 namespace ycsbc {
 
 inline long ClientThread(std::chrono::seconds sleepafterload,
-                        std::chrono::seconds maxexecutiontime,
-                        int threadId,
-                        ycsbc::DB* db,
-                        ycsbc::CoreWorkload* wl,
-                        const long num_ops,
-                        bool is_loading,
-                        bool init_db,
-                        bool cleanup_db,
-                        CountDownLatch* latch) {
+                         std::chrono::seconds maxexecutiontime,
+                         int threadId,
+                         ycsbc::DB* db,
+                         ycsbc::CoreWorkload* wl,
+                         const long num_ops,
+                         bool is_loading,
+                         bool init_db,
+                         bool cleanup_db) {
   try {
     db->SetThreadId(threadId);
     if (init_db) {
@@ -61,7 +60,6 @@ inline long ClientThread(std::chrono::seconds sleepafterload,
       db->Cleanup();
     }
 
-    latch->CountDown();
     if (maxexecutiontime.count() > 0) {
       terminator.wait();
     }

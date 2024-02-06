@@ -19,24 +19,27 @@ using namespace holpaca::common;
 
 namespace holpaca::control_algorithm {
 
-class HitRatioMaximization : public ControlAlgorithm {
+class HitRatioMaximizationQoS : public ControlAlgorithm {
   struct Context {
     struct PoolCtx {
       double size{0};
       double minSize{0};
       double maxSize{0};
+      double qos{-1};
       tk::spline MRC;
     };
     std::unordered_map<pid_t, PoolCtx> m_pool_configs{};
     double delta_max{0.05};
   };
+
   size_t const static kMRCMinLength = 3;
-  HitRatioMaximization() = delete;
+  HitRatioMaximizationQoS() = delete;
   Cache* cache = NULL;
   std::shared_ptr<spdlog::logger> m_logger;
   Status m_status{};
   uint64_t m_max{0};
   std::unordered_map<pid_t, tk::spline> m_mrcs{};
+  std::unordered_map<pid_t, double> qos{};
   std::unordered_set<pid_t> m_active_pools{};
   const gsl_rng_type* T;
   gsl_rng* r;
@@ -78,6 +81,15 @@ class HitRatioMaximization : public ControlAlgorithm {
         }
         m_mrcs[id] = tk::spline(cache_sizes, miss_rates,
                                 tk::spline::cspline_hermite, true);
+        //  auto errorMR = (1.0 - (static_cast<double>(pool.hits) /
+        //  pool.lookups)) -
+        //                 m_mrcs[id](pool.usedMem);
+        //  for (auto& mr : miss_rates) {
+        //    mr += errorMR;
+        //  }
+        //  m_mrcs[id] = tk::spline(cache_sizes, miss_rates,
+        //  tk::spline::cspline,
+        //                          true, tk::spline::second_deriv, 0.0);
       }
     }
   }
@@ -103,10 +115,22 @@ class HitRatioMaximization : public ControlAlgorithm {
                                           ? m_max / number_of_active_pools
                                           : m_status[id].usedMem;
         ctx.m_pool_configs[id].MRC = std::move(m_mrcs[id]);
-        ctx.m_pool_configs[id].minSize =
-            (1 - ctx.delta_max) * ctx.m_pool_configs[id].size;
-        ctx.m_pool_configs[id].maxSize =
-            (1 + ctx.delta_max) * ctx.m_pool_configs[id].size;
+        if (auto qos = this->qos.find(id); qos != this->qos.end()) {
+          auto mr = (1.0 - (static_cast<double>(pool.hits) / pool.lookups));
+          ctx.m_pool_configs[id].minSize =
+              qos->second * 0.975 > mr
+                  ? (1 - ctx.delta_max) * ctx.m_pool_configs[id].size
+                  : ctx.m_pool_configs[id].size;
+          ctx.m_pool_configs[id].maxSize =
+              qos->second * 1.025 < mr
+                  ? (1 + ctx.delta_max) * ctx.m_pool_configs[id].size
+                  : ctx.m_pool_configs[id].size;
+        } else {
+          ctx.m_pool_configs[id].minSize =
+              (1 - ctx.delta_max) * ctx.m_pool_configs[id].size;
+          ctx.m_pool_configs[id].maxSize =
+              (1 + ctx.delta_max) * ctx.m_pool_configs[id].size;
+        }
       }
       if (ctx.m_pool_configs.size() > 1) {
         gsl_siman_params_t params = {
@@ -184,8 +208,9 @@ class HitRatioMaximization : public ControlAlgorithm {
 
     double const delta =
         gsl_rng_uniform(r) *
-        std::min(victim->second.size - victim->second.minSize,
-                 receiver->second.maxSize - receiver->second.size);
+        std::min({victim->second.size,
+                  victim->second.size - victim->second.minSize,
+                  receiver->second.maxSize - receiver->second.size});
     if (delta > 0) {
       victim->second.size -= delta;
       receiver->second.size += delta;
@@ -195,11 +220,12 @@ class HitRatioMaximization : public ControlAlgorithm {
   /* now some functions to test in one dimension */
   static double energy(void* xp) {
     auto x = (Context*)xp;
-    return std::accumulate(x->m_pool_configs.begin(), x->m_pool_configs.end(),
-                           0.0, [](auto const& a, auto const& b) {
-                             return a +
-                                    std::max(b.second.MRC(b.second.size), 0.0);
-                           });
+    auto overallMR = 0.0;
+    for (auto const& [id, pool] : x->m_pool_configs) {
+      auto estimatedMR = pool.MRC(pool.size);
+      overallMR += estimatedMR;
+    }
+    return overallMR;
   }
 
   static double distance(void* xp, void* yp) {
@@ -218,10 +244,11 @@ class HitRatioMaximization : public ControlAlgorithm {
     compute();
     enforce();
   }
-  HitRatioMaximization(Cache* cache) : cache(cache) {
+  HitRatioMaximizationQoS(Cache* cache, std::unordered_map<pid_t, double> qos)
+      : cache(cache) {
     try {
       m_logger = spdlog::basic_logger_st(
-          "hitratiomaximization", "/tmp/hit_ratio_maximization.log", true);
+          "hitratiomaximization", "/tmp/hit_ratio_maximization_qos.log", true);
     } catch (const spdlog::spdlog_ex& ex) {
       std::cerr << "Log init failed: " << ex.what() << std::endl;
       abort();
@@ -231,9 +258,10 @@ class HitRatioMaximization : public ControlAlgorithm {
     m_logger->info("Initialization");
     gsl_rng_env_setup();
     r = gsl_rng_alloc(gsl_rng_default);
+    this->qos = std::move(qos);
   }
 
-  ~HitRatioMaximization() {
+  ~HitRatioMaximizationQoS() {
     m_logger->info("Destructing HitRatioMaximization");
     gsl_rng_free(r);
   }
