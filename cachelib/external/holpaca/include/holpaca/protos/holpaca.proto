@@ -2,53 +2,47 @@ syntax = "proto3";
 
 package holpaca;
 
-service cache {
-    rpc GetStatus(StatusRequest) returns (Status) {}
-    rpc GetSize(Empty) returns (Size) {}
+service stage {
+    rpc GetStatus(StatusRequest) returns (StatusResponse) {}
     rpc Resize(ResizeRequest) returns (ResizeResponse) {}
-    rpc SingleResize(SingleResizeRequest) returns (ResizeResponse) {}
-}
-
-message Empty {}
-message Size {
-    uint64 value = 1;
-}
-message MRC {
-    map<uint64, double> mrc = 1;
-}
-
-
-message StatusRequest {
-    repeated uint64 ids = 1;
 }
 
 message ResizeRequest {
-    uint64 src = 1;
-    uint64 dst = 2;
-    uint64 delta = 3;
-}
-
-message SingleResizeRequest {
-    uint64 target = 1;
-    uint64 newSize = 2;
+    uint64 newSize = 1;
 }
 
 message ResizeResponse {
     bool success = 1;
 }
 
-message SubStatus {
-    uint64 usedMem = 1;
-    uint64 freeMem = 2;
-    uint32 hits = 3;
-    uint32 lookups = 4;
-    uint64 evictions = 5;
-    map<uint64, uint32> tailAccesses = 6;
-    map<uint32, double> mrc = 7;
-    uint32 meanObjectSize = 8;
-    bool isActive = 9;
+message StatusRequest {
+    repeated uint64 ids = 1;
 }
 
-message Status {
-    map<uint64, SubStatus> subs = 1;
+message StatusResponse {
+    uint64 maxSize = 1;
+    uint32 hits = 2;
+    uint32 lookups = 3;
+    map<uint64, uint32> tailAccesses = 4;
+    map<uint64, double> mrc = 5;
+}
+
+service registration {
+    rpc connect(ConnectRequest) returns (ConnectResponse) {}
+    rpc disconnect(DisconnectRequest) returns (DisconnectResponse) {}
+}
+
+message ConnectRequest {
+    string address = 1;
+}
+
+message ConnectResponse {
+    bool success = 1;
+}
+
+message DisconnectRequest {
+    string address = 1;
+}
+
+message DisconnectResponse {
 }

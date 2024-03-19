@@ -31,12 +31,19 @@ const char* ycsbc::kOperationString[ycsbc::MAXOPTYPE] = {
     "SCAN",
     "READMODIFYWRITE",
     "DELETE",
+    "INSERT-PASSED",
+    "READ-PASSED",
+    "UPDATE-PASSED",
+    "SCAN-PASSED",
+    "READMODIFYWRITE-PASSED",
+    "DELETE-PASSED",
     "INSERT-FAILED",
     "READ-FAILED",
     "UPDATE-FAILED",
     "SCAN-FAILED",
     "READMODIFYWRITE-FAILED",
-    "DELETE-FAILED"};
+    "DELETE-FAILED",
+    "ALL"};
 
 const string CoreWorkload::TABLENAME_PROPERTY = "table";
 const string CoreWorkload::TABLENAME_DEFAULT = "usertable";

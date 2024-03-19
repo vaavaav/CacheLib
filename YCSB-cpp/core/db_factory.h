@@ -9,25 +9,27 @@
 #ifndef YCSB_C_DB_FACTORY_H_
 #define YCSB_C_DB_FACTORY_H_
 
+#include <map>
+#include <string>
+
 #include "db.h"
 #include "measurements.h"
 #include "properties.h"
-
-#include <string>
-#include <map>
 
 namespace ycsbc {
 
 class DBFactory {
  public:
-  using DBCreator = DB *(*)();
+  using DBCreator = DB* (*)();
   static bool RegisterDB(std::string db_name, DBCreator db_creator);
-  static DB *CreateDB(utils::Properties *props, Measurements *measurements);
+  static DB* CreateDB(utils::Properties* props,
+                      Measurements* measurements,
+                      Measurements* gMeasurements);
+
  private:
-  static std::map<std::string, DBCreator> &Registry();
+  static std::map<std::string, DBCreator>& Registry();
 };
 
-} // ycsbc
+} // namespace ycsbc
 
 #endif // YCSB_C_DB_FACTORY_H_
-

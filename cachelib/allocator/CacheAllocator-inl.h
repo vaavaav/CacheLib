@@ -1811,7 +1811,7 @@ CacheAllocator<CacheTrait>::find(typename Item::Key key, PoolId pid) {
   {
     auto key_str = std::string(key);
     std::lock_guard<std::mutex> l(shardsLock_);
-    shards_[pid]->feed(key_str, 1);
+    shards_[pid]->feed(key_str);
   }
   if (handle != nullptr) {
     auto const object_size = handle->getTotalSize();

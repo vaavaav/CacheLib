@@ -2211,7 +2211,7 @@ class CacheAllocator : public CacheBase,
     return (active_pools.find(pid) != active_pools.end());
   }
 
-  std::map<uint32_t, double> mrc(PoolId id) {
+  std::map<uint64_t, double> mrc(PoolId id) {
     std::lock_guard<std::mutex> lock(shardsLock_);
     if (auto x = shards_.find(id); x != shards_.end()) {
       return x->second->mrc();

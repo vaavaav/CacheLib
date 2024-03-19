@@ -40,14 +40,26 @@ find_package(gRPC REQUIRED)
 include(FetchContent)
 
 # ---------------------------------------------------------------------------- #
-# > spdlog --- logging library
-message(STATUS "spdlog NOT FOUND, fetching from sources")
 set(SPDLOG_INSTALL ON)
 FetchContent_Declare(spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
   GIT_TAG v1.9.2
 )
 FetchContent_MakeAvailable(spdlog)
+# ---------------------------------------------------------------------------- #
+FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.4.0
+)
+FetchContent_MakeAvailable(tomlplusplus)
+# ---------------------------------------------------------------------------- #
+FetchContent_Declare(
+    shards
+    GIT_REPOSITORY https://github.com/vaavaav/SHARDS-cpp.git
+    GIT_TAG        ed61da861d9ef4abf1cd25f6eaf3b74b85270764
+)
+FetchContent_MakeAvailable(shards)
 # ---------------------------------------------------------------------------- #
 
 set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
@@ -82,7 +94,7 @@ set(holpaca_grpc_hdrs  "${holpaca_proto_path}/holpaca.grpc.pb.h")
 add_custom_command(
       OUTPUT "${holpaca_proto_srcs}" "${holpaca_proto_hdrs}" "${holpaca_grpc_srcs}" "${holpaca_grpc_hdrs}"
       COMMAND ${_PROTOBUF_PROTOC}
-      ARGS --grpc_out "${holpaca_proto_path}"
+      ARGS --grpc_out "${holpaca_proto_path}" 
         --cpp_out "${holpaca_proto_path}"
         -I "${holpaca_proto_path}"
         --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
@@ -108,21 +120,20 @@ target_link_libraries( holpaca_proto
 find_package(GSL REQUIRED)
 
 add_executable(controller
-  include/holpaca/control_plane
-  include/holpaca/common/status.h
-  include/holpaca/common/cache.h
-  include/holpaca/config.h
-  include/holpaca/control_algorithm
-  src/control_algorithm/naive_control_algorithm.cpp
-  #src/control_plane/controller.cpp
-  src/control_plane/cache_proxy.cpp
-  src/control_plane/main.cpp
+  include/holpaca/control-plane
+  include/holpaca/Status.h
+  src/control-plane/Main.cpp
+  src/control-plane/Controller.cpp
+  src/control-plane/ProxyManager.cpp
+  src/control-plane/StageProxy.cpp
 )
 
 target_include_directories(controller
   PUBLIC
   include
 )
+
+find_package(GSL REQUIRED)
 
 target_link_libraries(controller
   PUBLIC
@@ -133,14 +144,14 @@ target_link_libraries(controller
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
   GSL::gsl
+  tomlplusplus::tomlplusplus
 )
 
 # ---------------------------------------------------------------------------- #
 # > Build Holpaca 
 
 set("${PROJECT_NAME}_HEADER_DIRS"
-  include/holpaca/data_plane
-  include/holpaca/control_algorithm
+  include/holpaca/data-plane
 )
 
 foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
@@ -151,9 +162,7 @@ foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
 endforeach()
 
 set("${PROJECT_NAME}_SOURCES"
-  src/data_plane/autonomous_stage.cpp
-  src/control_algorithm/naive_control_algorithm.cpp
-  #src/data_plane/stage_server.cpp
+src/data-plane/Stage.cpp
 )
 
 add_library(${PROJECT_NAME}
@@ -175,6 +184,7 @@ target_link_libraries(${PROJECT_NAME}
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
+  shards
 )
 
 install(

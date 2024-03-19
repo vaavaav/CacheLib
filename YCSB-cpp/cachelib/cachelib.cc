@@ -274,6 +274,16 @@ DB::Status CacheLib::Update(const std::string& table,
 DB::Status CacheLib::Insert(const std::string& table,
                             const std::string& key,
                             std::vector<Field>& values) {
+  std::string data = values.front().value;
+  auto new_handle = cache_->allocate(pools_[threadId_], key, data.size());
+
+  if (new_handle) {
+    std::memcpy(new_handle->getMemory(), data.data(), data.size());
+    cache_->insertOrReplace(new_handle, pools_[threadId_]);
+  } else {
+    return kError;
+  }
+
   return RDInsert(table, key, values);
 }
 

@@ -15,6 +15,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 #include "client.h"
@@ -26,6 +27,27 @@
 
 using namespace std::chrono_literals;
 
+static const std::unordered_set<std::string> kOperationTypes = {
+    "INSERT",
+    "READ",
+    "UPDATE",
+    "SCAN",
+    "READMODIFYWRITE",
+    "DELETE",
+    "INSERT-PASSED",
+    "READ-PASSED",
+    "UPDATE-PASSED",
+    "SCAN-PASSED",
+    "READMODIFYWRITE-PASSED",
+    "DELETE-PASSED",
+    "INSERT-FAILED",
+    "READ-FAILED",
+    "UPDATE-FAILED",
+    "SCAN-FAILED",
+    "READMODIFYWRITE-FAILED",
+    "DELETE-FAILED",
+    "ALL"};
+
 void UsageMessage(const char* command);
 bool StrStartWith(const char* str, const char* pre);
 void ParseCommandLine(int argc,
@@ -33,9 +55,12 @@ void ParseCommandLine(int argc,
                       ycsbc::utils::Properties& props);
 
 void StatusThread(std::vector<ycsbc::Measurements*>* measurements,
+                  ycsbc::Measurements* gMeasurements,
+                  std::vector<ycsbc::Operation>* operations,
                   std::atomic_bool* done,
                   std::chrono::seconds interval = 1s) {
   using namespace std::chrono;
+
   auto start = high_resolution_clock::now();
   while (1) {
     auto now = high_resolution_clock::now();
@@ -43,9 +68,10 @@ void StatusThread(std::vector<ycsbc::Measurements*>* measurements,
 
     std::cout << elapsed_time.count() << " sec: ";
 
+    std::cout << "global { " + gMeasurements->GetStatusMsg(*operations) + " } ";
     for (long i = 0; i < measurements->size(); i++) {
       std::cout << "worker-" + std::to_string(i) + " { " +
-                       measurements->at(i)->GetStatusMsg() + " } ";
+                       measurements->at(i)->GetStatusMsg(*operations) + " } ";
     }
     std::cout << std::endl;
     if (done->load()) {
@@ -66,18 +92,26 @@ int main(const int argc, const char* argv[]) {
     std::cerr << "No operation to do" << std::endl;
     exit(1);
   }
-
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
+  std::vector<ycsbc::Operation> operationsForStatus;
+  for (int i = 0; i < ycsbc::Operation::MAXOPTYPE; i++) {
+    if (props.ContainsKey("status." +
+                          std::string(ycsbc::kOperationString[i]))) {
+      operationsForStatus.push_back(static_cast<ycsbc::Operation>(i));
+    }
+  }
 
   std::vector<ycsbc::DB*> dbs;
   std::vector<ycsbc::Measurements*> measurements;
+  ycsbc::Measurements* gMeasurements = ycsbc::CreateMeasurements(&props);
   for (int i = 0; i < num_threads; i++) {
     measurements.push_back(ycsbc::CreateMeasurements(&props));
     if (measurements[i] == nullptr) {
       std::cerr << "Unknown measurements name" << std::endl;
       exit(1);
     }
-    ycsbc::DB* db = ycsbc::DBFactory::CreateDB(&props, measurements[i]);
+    ycsbc::DB* db =
+        ycsbc::DBFactory::CreateDB(&props, measurements[i], gMeasurements);
     if (db == nullptr) {
       std::cerr << "Unknown database name " << props["dbname"] << std::endl;
       exit(1);
@@ -109,7 +143,8 @@ int main(const int argc, const char* argv[]) {
     std::future<void> status_future;
     if (show_status) {
       status_future = std::async(std::launch::async, StatusThread,
-                                 &measurements, &done, status_interval);
+                                 &measurements, gMeasurements,
+                                 &operationsForStatus, &done, status_interval);
     }
     std::vector<std::future<long>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
@@ -143,6 +178,7 @@ int main(const int argc, const char* argv[]) {
   for (int i = 0; i < num_threads; i++) {
     measurements[i]->Reset();
   }
+  gMeasurements->Reset();
 
   // transaction phase
   if (do_transaction) {
@@ -155,8 +191,8 @@ int main(const int argc, const char* argv[]) {
     timer.Start();
     std::thread status_thread;
     if (show_status) {
-      status_thread =
-          std::thread(StatusThread, &measurements, &done, status_interval);
+      status_thread = std::thread(StatusThread, &measurements, gMeasurements,
+                                  &operationsForStatus, &done, status_interval);
     }
     std::vector<std::future<long>> client_threads;
     for (int i = 0; i < num_threads; ++i) {
@@ -196,6 +232,7 @@ int main(const int argc, const char* argv[]) {
     std::cout << "Run runtime(sec): " << runtime << std::endl;
     std::cout << "Run operations(ops): " << sum << std::endl;
     std::cout << "Run throughput(ops/sec): " << sum / runtime << std::endl;
+    std::cout << gMeasurements->GetCDF() << std::endl;
   }
 
   for (int i = 0; i < num_threads; i++) {
@@ -272,6 +309,21 @@ void ParseCommandLine(int argc,
     } else if (strcmp(argv[argindex], "-s") == 0) {
       props.SetProperty("status", "true");
       argindex++;
+      // get list of operations to print in the status message
+      // (space-separated), name must be in uppercase like in the Operation
+      // enum
+      while (argindex < argc && !StrStartWith(argv[argindex], "-")) {
+        if (kOperationTypes.find(std::string(argv[argindex])) !=
+            kOperationTypes.end()) {
+          props.SetProperty("status." + std::string(argv[argindex]), "true");
+          argindex++;
+        } else {
+          UsageMessage(argv[0]);
+          std::cerr << "Unknown operation '" << argv[argindex] << "'"
+                    << std::endl;
+          exit(0);
+        }
+      }
     } else {
       UsageMessage(argv[0]);
       std::cerr << "Unknown option '" << argv[argindex] << "'" << std::endl;
