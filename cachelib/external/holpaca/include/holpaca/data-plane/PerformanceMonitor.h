@@ -1,14 +1,15 @@
 #pragma once
 
-#include <Shards/Shards.h>
+// #include <Shards/Shards.h>
 
 #include <atomic>
+#include <map>
 #include <memory>
 
 namespace holpaca {
 
 class PerformanceMonitor {
-  std::atomic<std::shared_ptr<Shards>> m_shards;
+  // std::atomic<std::shared_ptr<Shards>> m_shards;
   std::atomic_uint64_t m_totalSize{0};
   std::atomic_uint64_t m_totalLookups{0};
   std::atomic_uint64_t m_totalHits{0};

@@ -184,6 +184,7 @@ target_link_libraries(${PROJECT_NAME}
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
+  tomlplusplus
   shards
 )
 

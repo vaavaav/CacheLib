@@ -1,5 +1,7 @@
 #pragma once
 #include <holpaca/control-plane/StageProxy.h>
+#include <holpaca/protos/holpaca.grpc.pb.h>
+#include <holpaca/protos/holpaca.pb.h>
 
 #include <shared_mutex>
 #include <string>
@@ -7,9 +9,9 @@
 #include <utility>
 
 namespace holpaca {
-class ProxyManager {
-  std::unordered_map<std::string, std::shared_ptr<StageProxy>> m_proxies;
+class ProxyManager : public holpaca::registration::Service {
   std::shared_timed_mutex m_mutex;
+  std::unordered_map<std::string, std::shared_ptr<StageProxy>> m_proxies;
 
  public:
   ProxyManager() = default;
@@ -21,5 +23,13 @@ class ProxyManager {
 
   iterator begin();
   iterator end();
+
+  // Registration Service
+  grpc::Status connect(grpc::ServerContext* context,
+                       const ConnectRequest* request,
+                       ConnectResponse* response) override final;
+  grpc::Status disconnect(grpc::ServerContext* context,
+                          const DisconnectRequest* request,
+                          DisconnectResponse* response) override final;
 };
 } // namespace holpaca

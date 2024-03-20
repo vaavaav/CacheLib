@@ -52,11 +52,18 @@ void Controller::operator()() {
     return;
   }
 
+  m_proxyManager = std::make_shared<ProxyManager>();
+
   m_registrationServer =
       grpc::ServerBuilder()
           .AddListeningPort(m_registrationAddress,
                             grpc::InsecureServerCredentials())
+          .RegisterService(m_proxyManager.get())
           .BuildAndStart();
+  if (m_registrationServer == nullptr) {
+    m_logger->error("Registration server could not be created");
+    return;
+  }
   m_logger->info("Registration service listening on {}", m_registrationAddress);
   // start server
   std::thread{[this]() { m_registrationServer->Wait(); }};

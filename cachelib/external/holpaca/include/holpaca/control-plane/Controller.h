@@ -1,7 +1,8 @@
 #pragma once
 #include <grpcpp/server.h>
 #include <holpaca/control-plane/ControlAlgorithm.h>
-#include <holpaca/data-plane/StageControlInterface.h>
+#include <holpaca/control-plane/ProxyManager.h>
+#include <holpaca/data-plane/ControlAPI.h>
 #include <spdlog/spdlog.h>
 
 #include <memory>
@@ -17,6 +18,7 @@ class Controller {
   std::vector<std::shared_ptr<ControlAlgorithm>> m_controlAlgorithms;
   std::vector<std::thread> m_runningControlAlgorithms;
   std::shared_ptr<grpc::Server> m_registrationServer;
+  std::shared_ptr<ProxyManager> m_proxyManager;
 
  public:
   Controller() = default;

@@ -3,23 +3,27 @@
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
-#include <holpaca/data-plane/Cache.h>
-#include <holpaca/data-plane/ControlAPI.h>
 #include <holpaca/data-plane/PerformanceMonitor.h>
+#include <holpaca/data-plane/StageServer.h>
 #include <spdlog/spdlog.h>
 
 #include <memory>
 
 namespace holpaca {
-class Stage {
-  std::unique_ptr<spdlog::logger> m_logger;
+class Stage : public DataAPI {
+  std::shared_ptr<spdlog::logger> m_logger;
   std::shared_ptr<PerformanceMonitor> m_performanceMonitor;
-  std::unique_ptr<ControlAPI> m_controlAPI;
-  std::unique_ptr<Cache> m_cache;
+  std::unique_ptr<grpc::Server> m_server;
+  std::shared_ptr<StageServer> m_stageServer;
+  Cache* m_cache;
+  std::string m_serverAddress;
 
  public:
   Stage() = default;
-  Stage& setLogger(const std::string& logFile);
-  Stage& setControlInterface();
+  Stage& setLogger(std::string& logFile);
+  Stage& setCache(Cache* cache);
+  Stage& setServerAddress(std::string& address);
+  void operator()();
+  ~Stage();
 };
 } // namespace holpaca

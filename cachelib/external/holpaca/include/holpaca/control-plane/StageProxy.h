@@ -3,7 +3,7 @@
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
-#include <holpaca/data-plane/StageControlInterface.h>
+#include <holpaca/data-plane/ControlAPI.h>
 #include <holpaca/protos/holpaca.grpc.pb.h>
 #include <holpaca/protos/holpaca.pb.h>
 #include <spdlog/spdlog.h>
@@ -14,7 +14,7 @@ using grpc::Channel;
 using grpc::ClientContext;
 
 namespace holpaca {
-class StageProxy : public StageControlInterface {
+class StageProxy : public ControlAPI {
   std::shared_ptr<grpc::Channel> m_channel;
   std::unique_ptr<holpaca::stage::Stub> m_stage;
 

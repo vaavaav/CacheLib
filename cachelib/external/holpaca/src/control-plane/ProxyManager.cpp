@@ -29,4 +29,19 @@ ProxyManager::iterator ProxyManager::end() {
   return m_proxies.end();
 }
 
+grpc::Status ProxyManager::connect(grpc::ServerContext* context,
+                                   const ConnectRequest* request,
+                                   ConnectResponse* response) {
+  std::string address = request->address();
+  response->set_success(add(address));
+  return grpc::Status::OK;
+}
+
+grpc::Status ProxyManager::disconnect(grpc::ServerContext* context,
+                                      const DisconnectRequest* request,
+                                      DisconnectResponse* response) {
+  std::string address = request->address();
+  remove(address);
+  return grpc::Status::OK;
+}
 } // namespace holpaca
