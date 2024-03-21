@@ -15,9 +15,7 @@ message ResizeResponse {
     bool success = 1;
 }
 
-message StatusRequest {
-    repeated uint64 ids = 1;
-}
+message StatusRequest {}
 
 message StatusResponse {
     uint64 maxSize = 1;

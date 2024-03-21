@@ -121,9 +121,10 @@ find_package(GSL REQUIRED)
 
 add_executable(controller
   include/holpaca/control-plane
-  include/holpaca/Status.h
+  include/holpaca/Cache.h
   src/control-plane/Main.cpp
   src/control-plane/Controller.cpp
+  src/control-plane/ControllerConfig.cpp
   src/control-plane/ProxyManager.cpp
   src/control-plane/StageProxy.cpp
 )
@@ -163,9 +164,11 @@ endforeach()
 
 set("${PROJECT_NAME}_SOURCES"
 src/data-plane/Stage.cpp
+src/data-plane/StageServer.cpp
 )
 
 add_library(${PROJECT_NAME}
+  include/holpaca/Cache.h
   "${${PROJECT_NAME}_HEADERS}"
 	"${${PROJECT_NAME}_SOURCES}"
 )

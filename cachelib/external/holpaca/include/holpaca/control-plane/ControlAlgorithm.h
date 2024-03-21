@@ -1,13 +1,16 @@
 #pragma once
+#include <holpaca/control-plane/ProxyManager.h>
+
 #include <string>
 
 namespace holpaca {
 class ControlAlgorithm {
+ protected:
+  std::shared_ptr<ProxyManager> m_proxyManager;
+
  public:
-  ControlAlgorithm() = default;
+  ControlAlgorithm(std::shared_ptr<ProxyManager>&);
   virtual void operator()() = 0;
-  virtual void fromFile(std::string& configFile) = 0;
-  virtual std::string& id() const = 0;
-  virtual bool isValid() const = 0;
+  virtual void stop() = 0;
 };
 } // namespace holpaca

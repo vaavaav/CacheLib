@@ -1,4 +1,5 @@
 #pragma once
+#include <holpaca/Cache.h>
 #include <holpaca/control-plane/StageProxy.h>
 #include <holpaca/protos/holpaca.grpc.pb.h>
 #include <holpaca/protos/holpaca.pb.h>
@@ -17,12 +18,7 @@ class ProxyManager : public holpaca::registration::Service {
   ProxyManager() = default;
   bool add(std::string& address);
   void remove(std::string& address);
-
-  using iterator =
-      std::unordered_map<std::string, std::shared_ptr<StageProxy>>::iterator;
-
-  iterator begin();
-  iterator end();
+  std::unordered_map<std::string, std::shared_ptr<Cache>> getCaches();
 
   // Registration Service
   grpc::Status connect(grpc::ServerContext* context,

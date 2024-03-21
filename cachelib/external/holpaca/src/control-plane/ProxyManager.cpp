@@ -1,8 +1,10 @@
+#include <holpaca/Cache.h>
 #include <holpaca/control-plane/ProxyManager.h>
 
 #include <mutex>
 
 namespace holpaca {
+
 bool ProxyManager::add(std::string& address) {
   StageProxy newProxy;
   newProxy.connect(address);
@@ -19,14 +21,16 @@ void ProxyManager::remove(std::string& address) {
   m_proxies.erase(address);
 }
 
-ProxyManager::iterator ProxyManager::begin() {
+std::unordered_map<std::string, std::shared_ptr<Cache>>
+ProxyManager::getCaches() {
+  std::unordered_map<std::string, std::shared_ptr<Cache>> caches;
   std::shared_lock<std::shared_timed_mutex> lock(m_mutex);
-  return m_proxies.begin();
-}
-
-ProxyManager::iterator ProxyManager::end() {
-  std::shared_lock<std::shared_timed_mutex> lock(m_mutex);
-  return m_proxies.end();
+  for (auto& [address, proxy] : m_proxies) {
+    if (proxy->isConnected()) {
+      caches[address] = std::static_pointer_cast<Cache>(proxy);
+    }
+  }
+  return caches;
 }
 
 grpc::Status ProxyManager::connect(grpc::ServerContext* context,
