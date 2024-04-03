@@ -25,6 +25,11 @@ ControllerConfig& ControllerConfig::addControlAlgorithm(
   return *this;
 }
 
+ControllerConfig& ControllerConfig::setMaxCacheSize(uint64_t size) {
+  m_maxCacheSize = size;
+  return *this;
+}
+
 bool ControllerConfig::isValid() const {
   // check logger
   bool result = true;

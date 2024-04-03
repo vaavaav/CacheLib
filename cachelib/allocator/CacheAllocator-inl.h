@@ -242,13 +242,6 @@ void CacheAllocator<CacheTrait>::initWorkers() {
                           config_.poolOptimizeStrategy,
                           config_.ccacheOptimizeStepSizePercent);
   }
-  if (config_.enable_holpaca) {
-    startNewHolpacaStage<holpaca::data_plane::StageServer>(
-        config_.holpaca_periodicity);
-  }
-  if (config_.enable_tracker) {
-    startNewTracker(config_.tracker_periodicity, config_.tracker_path);
-  }
 }
 
 template <typename CacheTrait>
@@ -1009,23 +1002,6 @@ void CacheAllocator<CacheTrait>::insertInMMContainer(Item& item) {
  * will also race with the removes we do in SlabRebalancing code paths.
  */
 template <typename CacheTrait>
-bool CacheAllocator<CacheTrait>::insert(const WriteHandle& handle, PoolId pid) {
-  auto const inserted = insert(handle);
-  this->activate(pid);
-  if (inserted) {
-    auto const object_size = handle->getTotalSize();
-    std::lock_guard<std::mutex> l(objectSizesLock_);
-    if (auto os = objectSizes_[pid].find(object_size);
-        os != objectSizes_[pid].end()) {
-      (os->second)++;
-    } else {
-      objectSizes_[pid].emplace(object_size, 1);
-    }
-  }
-  return inserted;
-}
-
-template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::insert(const WriteHandle& handle) {
   return insertImpl(handle, AllocatorApiEvent::INSERT);
 }
@@ -1064,32 +1040,6 @@ bool CacheAllocator<CacheTrait>::insertImpl(const WriteHandle& handle,
   }
 
   return result == AllocatorApiResult::INSERTED;
-}
-template <typename CacheTrait>
-typename CacheAllocator<CacheTrait>::WriteHandle
-CacheAllocator<CacheTrait>::insertOrReplace(const WriteHandle& handle,
-                                            PoolId pid) {
-  this->activate(pid);
-  auto const new_object_size = handle->getTotalSize();
-  auto replaced = insertOrReplace(handle);
-  {
-    std::lock_guard<std::mutex> l(objectSizesLock_);
-    if (replaced) {
-      auto const old_object_size = replaced->getTotalSize();
-      if (auto os = objectSizes_[pid].find(new_object_size);
-          os != objectSizes_[pid].end()) {
-        (os->second)--;
-      }
-    }
-    if (auto os = objectSizes_[pid].find(new_object_size);
-        os != objectSizes_[pid].end()) {
-      (os->second)++;
-    } else {
-      objectSizes_[pid].emplace(new_object_size, 1);
-    }
-  }
-
-  return replaced;
 }
 
 template <typename CacheTrait>
@@ -1804,36 +1754,6 @@ CacheAllocator<CacheTrait>::find(typename Item::Key key) {
 }
 
 template <typename CacheTrait>
-typename CacheAllocator<CacheTrait>::ReadHandle
-CacheAllocator<CacheTrait>::find(typename Item::Key key, PoolId pid) {
-  auto handle = find(key);
-  this->activate(pid);
-  {
-    auto key_str = std::string(key);
-    std::lock_guard<std::mutex> l(shardsLock_);
-    shards_[pid]->feed(key_str);
-  }
-  if (handle != nullptr) {
-    auto const object_size = handle->getTotalSize();
-    std::lock_guard<std::mutex> l(objectSizesLock_);
-    if (auto os = objectSizes_[pid].find(object_size);
-        os != objectSizes_[pid].end()) {
-      (os->second)++;
-    } else {
-      objectSizes_[pid].emplace(object_size, 1);
-    }
-  }
-  {
-    std::lock_guard<std::mutex> l(hitsLookupsLock_);
-    if (handle != nullptr) {
-      hitsLookups_[pid].first++;
-    }
-    hitsLookups_[pid].second++;
-  }
-  return handle;
-}
-
-template <typename CacheTrait>
 void CacheAllocator<CacheTrait>::markUseful(const ReadHandle& handle,
                                             AccessMode mode) {
   if (!handle) {
@@ -2121,22 +2041,16 @@ PoolId CacheAllocator<CacheTrait>::addPool(
     bool ensureProvisionable) {
   folly::SharedMutex::WriteHolder w(poolsResizeAndRebalanceLock_);
   auto pid = allocator_->addPool(name, size, allocSizes, ensureProvisionable);
-  {
-    std::lock_guard<std::mutex> lg(shardsLock_);
-    shards_[pid] = std::shared_ptr<Shards>(Shards::fixedSize(0.001, 32000));
-  }
-  {
-    std::lock_guard<std::mutex> lg(objectSizesLock_);
-    objectSizes_[pid] = {};
-  }
-  {
-    std::lock_guard<std::mutex> lg(hitsLookupsLock_);
-    hitsLookups_[pid] = {0, 0};
-  }
   createMMContainers(pid, std::move(config));
   setRebalanceStrategy(pid, std::move(rebalanceStrategy));
   setResizeStrategy(pid, std::move(resizeStrategy));
   return pid;
+}
+
+template <typename CacheTrait>
+bool CacheAllocator<CacheTrait>::removePool(PoolId pid) {
+  folly::SharedMutex::WriteHolder w(poolsResizeAndRebalanceLock_);
+  return allocator_->removePool(pid);
 }
 
 template <typename CacheTrait>
@@ -3255,7 +3169,6 @@ bool CacheAllocator<CacheTrait>::stopWorkers(std::chrono::seconds timeout) {
   success &= stopPoolResizer(timeout);
   success &= stopMemMonitor(timeout);
   success &= stopReaper(timeout);
-  success &= stopHolpacaStage(timeout);
   return success;
 }
 
@@ -3696,39 +3609,6 @@ bool CacheAllocator<CacheTrait>::startNewReaper(
 }
 
 template <typename CacheTrait>
-template <typename T, typename... Args>
-bool CacheAllocator<CacheTrait>::startNewHolpacaStage(
-    std::chrono::milliseconds interval, Args&&... args) {
-  if (!stopHolpacaStage()) {
-    return false;
-  }
-
-  bool ret = true;
-  std::lock_guard<std::mutex> l(workersMutex_);
-  try {
-    holpaca_stage_ =
-        std::make_unique<T>(this, interval, std::forward<Args>(args)...);
-  } catch (...) {
-    XLOGF(ERR, "Couldn't start worker '{}', interval: {} milliseconds",
-          "Holpaca", interval.count());
-    ret = false;
-  }
-  if (ret) {
-    XLOGF(DBG1, "Started worker '{}'", "Holpaca");
-  }
-  return ret;
-}
-
-template <typename CacheTrait>
-bool CacheAllocator<CacheTrait>::startNewTracker(
-    std::chrono::milliseconds interval, std::string pathToFile) {
-  if (!startNewWorker("Tracker", tracker_, interval, pathToFile)) {
-    return false;
-  }
-  return true;
-}
-
-template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::stopPoolRebalancer(
     std::chrono::seconds timeout) {
   return stopWorker("PoolRebalancer", poolRebalancer_, timeout);
@@ -3753,23 +3633,6 @@ bool CacheAllocator<CacheTrait>::stopMemMonitor(std::chrono::seconds timeout) {
 template <typename CacheTrait>
 bool CacheAllocator<CacheTrait>::stopReaper(std::chrono::seconds timeout) {
   return stopWorker("Reaper", reaper_, timeout);
-}
-
-template <typename CacheTrait>
-bool CacheAllocator<CacheTrait>::stopHolpacaStage(
-    std::chrono::seconds timeout) {
-  std::lock_guard<std::mutex> l(workersMutex_);
-  if (!holpaca_stage_) {
-    return true;
-  }
-  holpaca_stage_.reset();
-  XLOGF(DBG1, "Stopped worker '{}'", "Holpaca");
-  return true;
-}
-
-template <typename CacheTrait>
-bool CacheAllocator<CacheTrait>::stopTracker(std::chrono::seconds timeout) {
-  return stopWorker("Tracker", tracker_, timeout);
 }
 
 template <typename CacheTrait>

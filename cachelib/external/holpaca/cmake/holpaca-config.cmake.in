@@ -10,11 +10,8 @@ endif()
 set(HOLPACA_LIBRARIES holpaca::holpaca)
 
 include(CMakeFindDependencyMacro)
-find_dependency(spdlog CONFIG REQUIRED)
 find_dependency(Protobuf REQUIRED)
 find_dependency(gRPC REQUIRED)
-find_dependency(Shards REQUIRED)
-find_dependency(tomlplusplus REQUIRED)
 
 if (NOT holpaca_FIND_QUIETLY)
   message(STATUS "Found holpaca: ${PACKAGE_PREFIX_DIR}")

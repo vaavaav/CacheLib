@@ -15,6 +15,7 @@ build-sparsemap/
 build-wangle/
 build-zstd/
 build-holpaca/
+build-Shards/
 
 # Required source-code dependencies, fetched by ./contrib/ scripts.
 cachelib/external/fmt/

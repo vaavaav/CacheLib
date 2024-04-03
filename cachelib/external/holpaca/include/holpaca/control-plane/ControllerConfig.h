@@ -14,11 +14,13 @@ class ControllerConfig {
   std::string m_registrationAddress;
   std::unordered_map<std::string, std::shared_ptr<ControlAlgorithm>>
       m_controlAlgorithms;
+  uint64_t m_maxCacheSize{0};
 
  public:
   ControllerConfig& setLogger(std::string logFile);
   ControllerConfig& setRegistrationAddress(std::string address);
   ControllerConfig& addControlAlgorithm(std::string configFile);
+  ControllerConfig& setMaxCacheSize(uint64_t size);
   ControllerConfig& fromFile(std::string& configFile);
   bool isValid() const;
 

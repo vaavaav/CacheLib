@@ -36,8 +36,7 @@ MemoryAllocator::MemoryAllocator(Config config,
       slabAllocator_(memoryStart,
                      memSize,
                      {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(slabAllocator_)
-       {
+      memoryPoolManager_(slabAllocator_) {
   checkConfig(config_);
 }
 
@@ -45,8 +44,7 @@ MemoryAllocator::MemoryAllocator(Config config, size_t memSize)
     : config_(std::move(config)),
       slabAllocator_(memSize,
                      {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(slabAllocator_)
-      {
+      memoryPoolManager_(slabAllocator_) {
   checkConfig(config_);
 }
 
@@ -64,8 +62,7 @@ MemoryAllocator::MemoryAllocator(
                      memoryStart,
                      memSize,
                      {config_.disableFullCoredump, config_.lockMemory}),
-      memoryPoolManager_(*object.memoryPoolManager(), slabAllocator_)
-       {
+      memoryPoolManager_(*object.memoryPoolManager(), slabAllocator_) {
   checkConfig(config_);
 }
 
@@ -104,6 +101,10 @@ PoolId MemoryAllocator::addPool(folly::StringPiece name,
   }
 
   return memoryPoolManager_.createNewPool(name, size, poolAllocSizes);
+}
+
+bool MemoryAllocator::removePool(PoolId id) {
+  return memoryPoolManager_.removePool(id);
 }
 
 PoolId MemoryAllocator::getPoolId(const std::string& name) const noexcept {

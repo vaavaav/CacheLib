@@ -9,6 +9,7 @@ grpc::Status StageServer::GetStatus(grpc::ServerContext* context,
                                     StatusResponse* response) {
   auto status = m_cache->getStatus();
   response->set_maxsize(status.maxSize);
+  response->set_usedsize(status.usedSize);
   response->set_hits(status.hits);
   response->set_lookups(status.lookups);
   response->mutable_tailaccesses()->insert(status.tailAccesses.begin(),

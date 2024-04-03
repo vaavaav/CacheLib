@@ -42,6 +42,7 @@ Status StageProxy::getStatus() {
 
   return Status{
       rep.maxsize(),
+      rep.usedsize(),
       rep.hits(),
       rep.lookups(),
       std::map<uint64_t, uint32_t>{rep.tailaccesses().begin(),

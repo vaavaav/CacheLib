@@ -39,9 +39,10 @@
 #pragma GCC diagnostic pop
 
 #include <Shards/Shards.h>
-#include <holpaca/data_plane/autonomous_stage.h>
-#include <holpaca/data_plane/cache_server.h>
-#include <holpaca/data_plane/stage_server.h>
+#include <holpaca/Cache.h>
+#include <holpaca/data-plane/Stage.h>
+
+#include <shared_mutex>
 
 #include "cachelib/allocator/CCacheManager.h"
 #include "cachelib/allocator/Cache.h"
@@ -68,7 +69,6 @@
 #include "cachelib/allocator/Refcount.h"
 #include "cachelib/allocator/TempShmMapping.h"
 #include "cachelib/allocator/TlsActiveItemRing.h"
-#include "cachelib/allocator/Tracker.h"
 #include "cachelib/allocator/TypedHandle.h"
 #include "cachelib/allocator/Util.h"
 #include "cachelib/allocator/memory/MemoryAllocator.h"
@@ -179,8 +179,7 @@ class GET_CLASS_NAME(ObjectCache, ObjectHandleInvalid);
 // find/insert/remove interface similar to a hash table.
 //
 template <typename CacheTrait>
-class CacheAllocator : public CacheBase,
-                       public holpaca::data_plane::CacheServer {
+class CacheAllocator : public CacheBase {
  public:
   using CacheT = CacheAllocator<CacheTrait>;
   using MMType = typename CacheTrait::MMType;
@@ -518,7 +517,6 @@ class CacheAllocator : public CacheBase,
   //
   // @throw std::invalid_argument if the handle is already accessible.
   bool insert(const WriteHandle& handle);
-  bool insert(const WriteHandle& handle, PoolId pid);
 
   // Replaces the allocated handle into the AccessContainer, making it
   // accessible for everyone. If an existing handle is already in the
@@ -533,7 +531,6 @@ class CacheAllocator : public CacheBase,
   //        is already out of refcounts.
   // @return handle to the old item that had been replaced
   WriteHandle insertOrReplace(const WriteHandle& handle);
-  WriteHandle insertOrReplace(const WriteHandle& handle, PoolId pid);
 
   // look up an item by its key across the nvm cache as well if enabled.
   //
@@ -542,7 +539,6 @@ class CacheAllocator : public CacheBase,
   // @return          the read handle for the item or a handle to nullptr if the
   //                  key does not exist.
   ReadHandle find(Key key);
-  ReadHandle find(Key key, PoolId pid);
 
   // Warning: this API is synchronous today with HybridCache. This means as
   //          opposed to find(), we will block on an item being read from
@@ -809,6 +805,8 @@ class CacheAllocator : public CacheBase,
                  std::shared_ptr<RebalanceStrategy> rebalanceStrategy = nullptr,
                  std::shared_ptr<RebalanceStrategy> resizeStrategy = nullptr,
                  bool ensureProvisionable = false);
+
+  bool removePool(PoolId name);
 
   // update an existing pool's config
   //
@@ -2029,6 +2027,42 @@ class CacheAllocator : public CacheBase,
   // the memory allocator for allocating out of the available memory.
   std::unique_ptr<MemoryAllocator> allocator_;
 
+ public:
+  class PoolCache : public holpaca::Cache {
+    PoolId const m_kPoolId;
+    CacheAllocator* const m_kCacheAllocator;
+
+   public:
+    PoolCache(CacheAllocator* cacheAllocator, PoolId pid)
+        : m_kPoolId(pid),
+          m_kCacheAllocator(cacheAllocator){
+
+          };
+    void resize(size_t newSize) override final {
+      auto const oldSize = m_kCacheAllocator->getPoolStats(m_kPoolId).poolSize;
+      if (newSize > oldSize) {
+        m_kCacheAllocator->growPool(m_kPoolId, newSize - oldSize);
+      } else {
+        m_kCacheAllocator->shrinkPool(m_kPoolId, oldSize - newSize);
+      }
+    };
+
+    holpaca::Status getStatus() override final {
+      auto const poolStats = m_kCacheAllocator->getPoolStats(m_kPoolId);
+      auto const globalStats = m_kCacheAllocator->getGlobalCacheStats();
+      return holpaca::Status{poolStats.poolSize,
+                             poolStats.poolUsableSize,
+                             poolStats.numPoolGetHits,
+                             globalStats.numCacheGets,
+                             {},
+                             {}};
+    }
+  };
+
+ private:
+  std::unordered_map<PoolId, std::unique_ptr<holpaca::Stage>> stages_;
+  std::shared_timed_mutex stagesLock_;
+
   // compact cache allocator manager
   std::unique_ptr<CCacheManager> compactCacheManager_;
 
@@ -2079,17 +2113,6 @@ class CacheAllocator : public CacheBase,
 
   // free memory monitor
   std::unique_ptr<MemoryMonitor> memMonitor_;
-
-  // holpaca
-  std::unordered_map<PoolId, std::shared_ptr<Shards>> shards_;
-  std::mutex shardsLock_;
-  std::unordered_map<PoolId, std::unordered_map<uint32_t, uint32_t>>
-      objectSizes_;
-  std::unordered_map<PoolId, std::pair<uint32_t, uint32_t>> hitsLookups_;
-  std::mutex hitsLookupsLock_;
-  std::mutex objectSizesLock_;
-  std::unique_ptr<holpaca::data_plane::Stage> holpaca_stage_;
-  std::unique_ptr<Tracker> tracker_;
 
   // check whether a pool is a slabs pool
   std::array<bool, MemoryPoolManager::kMaxPools> isCompactCachePool_{};
@@ -2176,124 +2199,6 @@ class CacheAllocator : public CacheBase,
   friend class GET_DECORATED_CLASS_NAME(objcache::test,
                                         ObjectCache,
                                         ObjectHandleInvalid);
-
- public:
-  void resize(holpaca::Id src, holpaca::Id dst, size_t delta) override final {
-    this->resizePools(
-        static_cast<PoolId>(src), static_cast<PoolId>(dst), delta);
-  }
-
-  void resize(holpaca::Id target, size_t newSize) override final {
-    size_t currSize = getPoolStats(target).poolSize;
-    if (currSize > newSize) {
-      shrinkPool(target, currSize - newSize);
-    } else {
-      growPool(target, newSize - currSize);
-    }
-  }
-
-  uint32_t meanObjectSize(PoolId pid) {
-    uint32_t meanObjectSize = 0;
-    uint32_t counter = 0;
-    std::lock_guard<std::mutex> lock(objectSizesLock_);
-    if (auto x = objectSizes_.find(pid); x != objectSizes_.end()) {
-      for (auto const& [object_size, count] : x->second) {
-        meanObjectSize += object_size * count;
-        counter += count;
-      }
-      x->second.clear();
-    }
-    return counter > 0 ? meanObjectSize / counter : 0;
-  }
-
-  bool isActive(PoolId pid) {
-    std::lock_guard<std::mutex> lock(active_pools_mutex);
-    return (active_pools.find(pid) != active_pools.end());
-  }
-
-  std::map<uint64_t, double> mrc(PoolId id) {
-    std::lock_guard<std::mutex> lock(shardsLock_);
-    if (auto x = shards_.find(id); x != shards_.end()) {
-      return x->second->mrc();
-    }
-    return {};
-  }
-
-  std::pair<uint32_t, uint32_t> getHitsLookups(PoolId id) {
-    std::lock_guard<std::mutex> lock(hitsLookupsLock_);
-    auto r = hitsLookups_[id];
-    hitsLookups_[id] = {0, 0};
-    return r;
-  }
-
-  holpaca::common::Status getStatus() override final {
-    holpaca::common::Status result = {};
-    for (PoolId const& id : getPoolIds()) {
-      auto const mean_object_size = meanObjectSize(id);
-      auto pool_stats = getPoolStats(id);
-      auto const [hits, lookups] = getHitsLookups(id);
-      bool const is_active = isActive(id);
-      std::map<uint64_t, uint32_t> tailHits;
-      for (auto const& [cid, cs] : pool_stats.cacheStats) {
-        tailHits[cid] = cs.containerStat.numTailAccesses;
-      }
-      result[id] = holpaca::common::SubStatus{pool_stats.poolSize,
-                                              pool_stats.freeMemoryBytes(),
-                                              hits,
-                                              lookups,
-                                              pool_stats.numEvictions(),
-                                              tailHits,
-                                              mrc(id),
-                                              mean_object_size,
-                                              is_active};
-    }
-    return result;
-  }
-
- private:
-  std::mutex active_pools_mutex;
-  std::unordered_map<PoolId, int> active_pools;
-
- public:
-  void activate(PoolId pid) {
-    std::lock_guard<std::mutex> lock(active_pools_mutex);
-    if (auto const& x = active_pools.find(pid); x != active_pools.end()) {
-      x->second = 1;
-    } else {
-      active_pools.insert({pid, 1});
-    }
-  }
-
-  void deactive(PoolId pid) {
-    std::lock_guard<std::mutex> lg(active_pools_mutex);
-    if (active_pools.find(pid) != active_pools.end()) {
-      auto r = (active_pools[pid]--);
-      if (r == 0) {
-        active_pools.erase(pid);
-      }
-    }
-  }
-
-  size_t size() { return this->getCacheMemoryStats().ramCacheSize; }
-
-  std::set<PoolId> getActivePools() override {
-    auto result = getActivePoolsAux();
-    for (auto const& pid : result) {
-      deactive(pid);
-    }
-    return result;
-  }
-
-  std::set<PoolId> getActivePoolsAux() {
-    std::set<PoolId> result;
-    {
-      std::lock_guard<std::mutex> guard(active_pools_mutex);
-      for (auto const& [pid, _] : active_pools) {
-        result.insert(pid);
-      }
-    }
-    return result;
-  }
 };
 } // namespace cachelib
 } // namespace facebook

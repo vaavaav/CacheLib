@@ -19,9 +19,9 @@
 #include <folly/SharedMutex.h>
 
 #include <array>
+#include <map>
 #include <memory>
 #include <unordered_map>
-#include <map>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -77,9 +77,12 @@ class MemoryPoolManager {
                        size_t size,
                        const std::set<uint32_t>& allocSizes);
 
+  bool removePool(PoolId id);
+
   // shrink the existing pool by _bytes_ .
   // @param bytes  the number of bytes to be taken away from the pool
-  // @return  true if the operation succeeded. false if the size of the pool is
+  // @return  true if the operation succeeded. false if the size of the pool
+  // is
   //          smaller than _bytes_
   // @throw   std::invalid_argument if the poolId is invalid.
   bool shrinkPool(PoolId pid, size_t bytes);

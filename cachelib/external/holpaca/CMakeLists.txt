@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MODULE_PATH
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake
   ${CMAKE_MODULE_PATH})
 
 # When installing in a non-default prefix, this will let
@@ -28,39 +28,30 @@ set(LIB_INSTALL_DIR lib CACHE STRING
     "The subdirectory where libraries should be installed")
 set(BIN_INSTALL_DIR bin CACHE STRING
     "The subdirectory where binaries should be installed")
-set(CMAKE_INSTALL_DIR lib/cmake/${PROJECT_NAME} CACHE STRING
+set(CMAKE_INSTALL_DIR lib/cmake/holpaca CACHE STRING
     "The subdirectory where CMake package config files should be installed")
 
-include(GNUInstallDirs)
-
-find_package(Threads REQUIRED)
-find_package(Protobuf REQUIRED)
-message(STATUS "Protobuf version: ${Protobuf_VERSION}")
-find_package(gRPC REQUIRED)
 include(FetchContent)
-
-# ---------------------------------------------------------------------------- #
+# --------------------------------------------------------------------- #
 set(SPDLOG_INSTALL ON)
 FetchContent_Declare(spdlog
   GIT_REPOSITORY https://github.com/gabime/spdlog.git
   GIT_TAG v1.9.2
 )
 FetchContent_MakeAvailable(spdlog)
-# ---------------------------------------------------------------------------- #
+# --------------------------------------------------------------------- #
 FetchContent_Declare(
     tomlplusplus
     GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
     GIT_TAG        v3.4.0
 )
 FetchContent_MakeAvailable(tomlplusplus)
-# ---------------------------------------------------------------------------- #
-FetchContent_Declare(
-    shards
-    GIT_REPOSITORY https://github.com/vaavaav/SHARDS-cpp.git
-    GIT_TAG        ed61da861d9ef4abf1cd25f6eaf3b74b85270764
-)
-FetchContent_MakeAvailable(shards)
-# ---------------------------------------------------------------------------- #
+# --------------------------------------------------------------------- #
+find_package(Threads REQUIRED)
+find_package(Protobuf REQUIRED)
+message(STATUS "Protobuf version: ${Protobuf_VERSION}")
+find_package(gRPC REQUIRED)
+
 
 set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
 set(_REFLECTION gRPC::grpc++_reflection)
@@ -82,33 +73,26 @@ else()
     set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
 endif()
 
-# Proto file
-get_filename_component(holpaca_proto "include/holpaca/protos/holpaca.proto" ABSOLUTE)
-get_filename_component(holpaca_proto_path "${holpaca_proto}" PATH)
+# Proto + gRPC
+get_filename_component(holpaca-proto-path "include/holpaca/protos/holpaca.proto" PATH)
+set(PROTO_OUTPUT ${holpaca-proto-path}/holpaca.pb.cc ${holpaca-proto-path}/holpaca.pb.h ${holpaca-proto-path}/holpaca.grpc.pb.cc ${holpaca-proto-path}/holpaca.grpc.pb.h)
 
 # Generated sources
-set(holpaca_proto_srcs "${holpaca_proto_path}/holpaca.pb.cc")
-set(holpaca_proto_hdrs "${holpaca_proto_path}/holpaca.pb.h")
-set(holpaca_grpc_srcs  "${holpaca_proto_path}/holpaca.grpc.pb.cc")
-set(holpaca_grpc_hdrs  "${holpaca_proto_path}/holpaca.grpc.pb.h")
-add_custom_command(
-      OUTPUT "${holpaca_proto_srcs}" "${holpaca_proto_hdrs}" "${holpaca_grpc_srcs}" "${holpaca_grpc_hdrs}"
-      COMMAND ${_PROTOBUF_PROTOC}
-      ARGS --grpc_out "${holpaca_proto_path}" 
-        --cpp_out "${holpaca_proto_path}"
-        -I "${holpaca_proto_path}"
-        --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-        "${holpaca_proto}"
-      DEPENDS "${holpaca_proto}")
 
-add_library(holpaca_proto
-  ${holpaca_proto_hdrs}
-  ${holpaca_grpc_hdrs}
-  ${holpaca_proto_srcs}
-  ${holpaca_grpc_srcs}
+add_custom_command(
+      OUTPUT "${PROTO_OUTPUT}"
+      COMMAND ${_PROTOBUF_PROTOC}
+      ARGS --grpc_out "${holpaca-proto-path}" 
+        --cpp_out "${holpaca-proto-path}"
+        -I "${holpaca-proto-path}"
+        --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+      DEPENDS "${holpaca-proto-path}/holpaca.proto")
+
+add_library(holpaca-proto
+${PROTO_OUTPUT}
 )
 
-target_link_libraries( holpaca_proto
+target_link_libraries(holpaca-proto
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
@@ -134,78 +118,74 @@ target_include_directories(controller
   include
 )
 
-find_package(GSL REQUIRED)
-
 target_link_libraries(controller
   PUBLIC
-  holpaca_proto
+  holpaca-proto
+  PRIVATE
   Threads::Threads
+  tomlplusplus::tomlplusplus
   spdlog::spdlog
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
   GSL::gsl
-  tomlplusplus::tomlplusplus
 )
 
 # ---------------------------------------------------------------------------- #
 # > Build Holpaca 
 
-set("${PROJECT_NAME}_HEADER_DIRS"
+set(holpaca-header-dirs
   include/holpaca/data-plane
 )
-
-foreach(dir "${${PROJECT_NAME}_HEADER_DIRS}")
+foreach(dir ${holpaca-header-dirs})
   file(GLOB_RECURSE headers ${dir}/*.h)
-	set("${${PROJECT_NAME}}_HEADERS"
-		"${${PROJECT_NAME}_HEADERS}"
+	set(holpaca-headers
+		${holpaca-headers}
     ${headers})
 endforeach()
 
-set("${PROJECT_NAME}_SOURCES"
+set(holpaca-sources
 src/data-plane/Stage.cpp
 src/data-plane/StageServer.cpp
 )
 
-add_library(${PROJECT_NAME}
+add_library(holpaca
   include/holpaca/Cache.h
-  "${${PROJECT_NAME}_HEADERS}"
-	"${${PROJECT_NAME}_SOURCES}"
+  ${holpaca-headers}
+  ${holpaca-sources}
 )
 
 
-target_include_directories(${PROJECT_NAME}
+target_include_directories(holpaca
   PUBLIC
-  "$<BUILD_INTERFACE:${${PROJECT_NAME}_SOURCE_DIR}/include>"
+  "$<BUILD_INTERFACE:${holpaca_SOURCE_DIR}/include>"
   "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
 )
 
-target_link_libraries(${PROJECT_NAME} 
+target_link_libraries(holpaca
   PUBLIC
-  holpaca_proto
+  holpaca-proto
+  PRIVATE
   spdlog
+  tomlplusplus::tomlplusplus
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
-  tomlplusplus
-  shards
 )
 
 install(
-  TARGETS ${PROJECT_NAME} 
-  spdlog 
-  holpaca_proto
-  EXPORT ${PROJECT_NAME}-exports
-  DESTINATION ${LIB_INSTALL_DIR}
+  TARGETS holpaca holpaca-proto spdlog tomlplusplus_tomlplusplus
+  EXPORT holpaca-config
+  ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 )
 
-install (DIRECTORY "include/${PROJECT_NAME}" DESTINATION ${INCLUDE_INSTALL_DIR})
+install (DIRECTORY "include/holpaca" DESTINATION ${INCLUDE_INSTALL_DIR})
 
 # Install CMake package configuration files for alpaca
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-	cmake/${PROJECT_NAME}-config.cmake.in
-	${PROJECT_NAME}-config.cmake
+	cmake/holpaca-config.cmake.in
+	holpaca-config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_DIR}
   PATH_VARS
     INCLUDE_INSTALL_DIR
@@ -213,12 +193,12 @@ configure_package_config_file(
 )
 
 install(
-  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/holpaca-config.cmake
   DESTINATION ${CMAKE_INSTALL_DIR}
 )
 install(
-  EXPORT ${PROJECT_NAME}-exports
-  FILE ${PROJECT_NAME}Targets.cmake
-  NAMESPACE ${PROJECT_NAME}::
+  EXPORT holpaca-config
+  NAMESPACE holpaca::
+  FILE holpacaTargets.cmake
   DESTINATION ${CMAKE_INSTALL_DIR}
 )

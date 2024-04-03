@@ -105,8 +105,8 @@ find_package(wangle CONFIG REQUIRED)
 find_package(Zlib REQUIRED)
 find_package(Zstd REQUIRED)
 find_package(FBThrift REQUIRED) # must come after wangle
+find_package(Shards REQUIRED)
 find_package(holpaca CONFIG REQUIRED)
-find_package(Shards CONFIG REQUIRED)
 
 # FBThrift - generates h/cpp files from .*thrift files
 find_program(FBTHRIFT1 thrift1
@@ -285,7 +285,6 @@ add_subdirectory (datatype)
 add_subdirectory (compact_cache)
 add_subdirectory (benchmarks)
 add_subdirectory (cachebench)
-add_subdirectory(external/SHARDS-cpp)
 
 # Install the source header files
 install(

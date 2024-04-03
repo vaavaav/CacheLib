@@ -1,12 +1,16 @@
 #include <holpaca/control-algorithms/HitRatioMaximization.h>
+#include <holpaca/ext/Spline.h>
 
 #include <map>
 #include <thread>
 
-struct CollectInformation {
-  std::unordered_map<std::string, size_t> partitioning;
-  std::map<uint64_t, double> mrcs;
+struct status {
+  uint64_t size{0};
+  uint64_t freeSize{0};
+  tk::spline mrc;
 };
+
+using CollectInformation = std::unordered_map<std::string, status>;
 
 struct ComputeInformation {
   std::unordered_map<std::string, size_t> newPartitioning;
@@ -17,14 +21,24 @@ CollectInformation collect(
   CollectInformation collectInformation;
   for (const auto& [address, cache] : caches) {
     auto status = cache->getStatus();
-    collectInformation.partitioning[address] = status.maxSize;
+    std::vector<uint64_t> sizes;
+    std::vector<double> missRatios;
+    sizes.reserve(status.mrc.size());
+    missRatios.reserve(status.mrc.size());
+    for (auto& [size, missRatio] : status.mrc) {
+      sizes.push_back(size);
+      missRatios.push_back(missRatio);
+    }
+    collectInformation[address] = {
+
+        tk::spline(sizes, missRatios, tk::spline::cspline_hermite, true)};
   }
   return collectInformation;
 }
 
 ComputeInformation compute(const CollectInformation& collectInformation) {
   ComputeInformation computeInformation;
-  // todo
+
   return computeInformation;
 }
 

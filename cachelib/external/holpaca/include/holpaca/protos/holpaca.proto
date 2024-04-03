@@ -19,10 +19,11 @@ message StatusRequest {}
 
 message StatusResponse {
     uint64 maxSize = 1;
-    uint32 hits = 2;
-    uint32 lookups = 3;
-    map<uint64, uint32> tailAccesses = 4;
-    map<uint64, double> mrc = 5;
+    uint64 usedSize = 2;
+    uint32 hits = 3;
+    uint32 lookups = 4;
+    map<uint64, uint32> tailAccesses = 5;
+    map<uint64, double> mrc = 6;
 }
 
 service registration {
