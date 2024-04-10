@@ -15,4 +15,7 @@
 	url = https://github.com/facebook/zstd
 [submodule "holpaca"]
 	path = cachelib/external/holpaca
-	url = https://github.com/vaavaav/holpaca
+	url = git@github.com:vaavaav/holpaca
+[submodule "cachelib/external/Shards"]
+	path = cachelib/external/Shards
+	url = https://github.com/vaavaav/SHARDS-cpp

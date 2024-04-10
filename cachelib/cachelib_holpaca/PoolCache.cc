@@ -1,4 +1,4 @@
-#include "PoolStage.h"
+#include "PoolCache.h"
 
 namespace facebook::cachelib {
 template <typename CacheTrait>
@@ -14,13 +14,14 @@ PoolCache<CacheTrait>::PoolCache(std::string name,
 
 template <typename CacheTrait>
 std::string PoolCache<CacheTrait>::get(std::string& key) {
-  auto item = m_cachelibInstance->get(m_poolId, key);
+  auto handle = m_cachelibInstance->find(key);
   std::unique_lock<std::shared_mutex> lock(m_mutex);
   m_lookups++;
   m_shards->feed(key);
-  if (item.has_value()) {
+  if (handle != nullptr) {
     m_hits++;
-    return item.value();
+    return std::string(reinterpret_cast<const char*>(handle->getMemory()),
+                       handle->getSize());
   }
   return "";
 }
@@ -38,21 +39,30 @@ bool PoolCache<CacheTrait>::put(std::string& key, std::string& value) {
 
 template <typename CacheTrait>
 bool PoolCache<CacheTrait>::remove(std::string& key) {
-  return m_cachelibInstance->remove(m_poolId, key);
+  // TODO: this can remove keys from other pools as well...
+  return m_cachelibInstance->remove(key) == CacheTrait::RemoveRes::kSuccess;
 }
 
 template <typename CacheTrait>
 void PoolCache<CacheTrait>::resize(size_t newSize) {
-  m_cachelibInstance->resizePool(m_poolId, newSize);
+  auto oldSize = m_cachelibInstance->getPoolStats(m_poolId).poolSize;
+  if (newSize > oldSize) {
+    m_cachelibInstance->growPool(m_poolId, newSize - oldSize);
+  } else {
+    m_cachelibInstance->shrinkPool(m_poolId, oldSize - newSize);
+  }
 }
 
 template <typename CacheTrait>
 holpaca::Status PoolCache<CacheTrait>::getStatus() {
   auto stats = m_cachelibInstance->getPoolStats(m_poolId);
   holpaca::Status status{
-      stats.poolSize, stats.poolUsableSize, 0, m_hits, m_lookups, {},
+      stats.poolSize, stats.poolUsableSize, m_hits, m_lookups, {},
       m_shards->mrc()};
   return status;
 }
-
+template class PoolCache<LruAllocator>;
+template class PoolCache<LruAllocatorSpinBuckets>;
+template class PoolCache<Lru2QAllocator>;
+template class PoolCache<TinyLFUAllocator>;
 } // namespace facebook::cachelib
