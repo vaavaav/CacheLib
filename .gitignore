@@ -15,7 +15,6 @@ build-sparsemap/
 build-wangle/
 build-zstd/
 build-holpaca/
-build-Shards/
 
 # Required source-code dependencies, fetched by ./contrib/ scripts.
 cachelib/external/fmt/
@@ -23,6 +22,7 @@ cachelib/external/gflags/
 cachelib/external/glog/
 cachelib/external/googletest/
 cachelib/external/sparsemap/
+cachelib/external/holpaca/
 opt
 
 # cpp gitignore

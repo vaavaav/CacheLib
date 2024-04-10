@@ -13,16 +13,22 @@
 #include <memory>
 #include <thread>
 
-namespace holpaca {
-class Stage {
-  std::shared_ptr<grpc::Server> m_server;
-  std::shared_ptr<spdlog::logger> m_logger;
-  StageServer* m_stageServer;
-  Cache* m_cache;
-  std::thread m_serverThread;
+namespace holpaca
+{
+  class Stage : public DataInterface
+  {
+    std::shared_ptr<grpc::Server> m_server;
+    std::shared_ptr<spdlog::logger> m_logger;
+    StageServer *m_stageServer;
+    Cache *m_cache;
+    std::thread m_serverThread;
 
- public:
-  Stage(StageConfig& config);
-  ~Stage();
-};
+  public:
+    Stage(StageConfig &config);
+    ~Stage();
+
+    std::string get(std::string &key) override final;
+    bool put(std::string &key, std::string &value) override final;
+    bool remove(std::string &key) override final;
+  };
 } // namespace holpaca

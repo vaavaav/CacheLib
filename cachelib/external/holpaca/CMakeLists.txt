@@ -74,22 +74,30 @@ else()
 endif()
 
 # Proto + gRPC
-get_filename_component(holpaca-proto-path "include/holpaca/protos/holpaca.proto" PATH)
-set(PROTO_OUTPUT ${holpaca-proto-path}/holpaca.pb.cc ${holpaca-proto-path}/holpaca.pb.h ${holpaca-proto-path}/holpaca.grpc.pb.cc ${holpaca-proto-path}/holpaca.grpc.pb.h)
+get_filename_component(holpaca-proto-file "include/holpaca/protos/holpaca.proto" ABSOLUTE)
+get_filename_component(holpaca-proto-path ${holpaca-proto-file} PATH)
+set(holpaca-proto-srcs "${holpaca-proto-path}/holpaca.pb.cc")
+set(holpaca-proto-hdrs "${holpaca-proto-path}/holpaca.pb.h")
+set(holpaca-grpc-srcs  "${holpaca-proto-path}/holpaca.grpc.pb.cc")
+set(holpaca-grpc-hdrs  "${holpaca-proto-path}/holpaca.grpc.pb.h")
 
 # Generated sources
 
 add_custom_command(
-      OUTPUT "${PROTO_OUTPUT}"
+      OUTPUT ${holpaca-proto-srcs} ${holpaca-proto-hdrs} ${holpaca-grpc-srcs} ${holpaca-grpc-hdrs}
       COMMAND ${_PROTOBUF_PROTOC}
       ARGS --grpc_out "${holpaca-proto-path}" 
         --cpp_out "${holpaca-proto-path}"
         -I "${holpaca-proto-path}"
         --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-      DEPENDS "${holpaca-proto-path}/holpaca.proto")
+        "${holpaca-proto-file}"
+      DEPENDS "${holpaca-proto-file}")
 
 add_library(holpaca-proto
-${PROTO_OUTPUT}
+${holpaca-proto-hdrs}
+${holpaca-grpc-hdrs}
+${holpaca-proto-srcs}
+${holpaca-grpc-srcs}
 )
 
 target_link_libraries(holpaca-proto
@@ -147,6 +155,7 @@ endforeach()
 set(holpaca-sources
 src/data-plane/Stage.cpp
 src/data-plane/StageServer.cpp
+src/data-plane/StageConfig.cpp
 )
 
 add_library(holpaca
@@ -155,10 +164,14 @@ add_library(holpaca
   ${holpaca-sources}
 )
 
+FetchContent_GetProperties(spdlog SOURCE_DIR spdlog_SOURCE_DIR)
+FetchContent_GetProperties(tomlplusplus SOURCE_DIR tomplusplus_SOURCE_DIR)
 
 target_include_directories(holpaca
   PUBLIC
   "$<BUILD_INTERFACE:${holpaca_SOURCE_DIR}/include>"
+  "$<BUILD_INTERFACE:${spdlog_SOURCE_DIR}/include>"
+  "$<BUILD_INTERFACE:${tomlplusplus_SOURCE_DIR}/include>"
   "$<INSTALL_INTERFACE:${INCLUDE_INSTALL_DIR}>"
 )
 

@@ -13,3 +13,6 @@
 [submodule "zstd"]
 	path = cachelib/external/zstd
 	url = https://github.com/facebook/zstd
+[submodule "holpaca"]
+	path = cachelib/external/holpaca
+	url = https://github.com/vaavaav/holpaca

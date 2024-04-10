@@ -105,7 +105,6 @@ find_package(wangle CONFIG REQUIRED)
 find_package(Zlib REQUIRED)
 find_package(Zstd REQUIRED)
 find_package(FBThrift REQUIRED) # must come after wangle
-find_package(Shards REQUIRED)
 find_package(holpaca CONFIG REQUIRED)
 
 # FBThrift - generates h/cpp files from .*thrift files
@@ -285,12 +284,14 @@ add_subdirectory (datatype)
 add_subdirectory (compact_cache)
 add_subdirectory (benchmarks)
 add_subdirectory (cachebench)
+add_subdirectory (cachelib_holpaca)
 
 # Install the source header files
 install(
   DIRECTORY
     allocator
     common
+    cachelib_holpaca
     compact_cache
     datatype
     navy
@@ -347,6 +348,7 @@ target_link_libraries(cachelib INTERFACE
      cachelib_shm
      cachelib_navy
      cachelib_allocator
+     cachelib_holpaca
      )
 target_include_directories(
   cachelib
@@ -374,6 +376,7 @@ if (BUILD_SHARED_LIBS)
     cachelib_datatype
     cachelib_navy
     cachelib_shm
+    cachelib_holpaca
     PROPERTIES
     SOVERSION ${CACHELIB_MAJOR_VERSION}
     VERSION ${PACKAGE_VERSION}

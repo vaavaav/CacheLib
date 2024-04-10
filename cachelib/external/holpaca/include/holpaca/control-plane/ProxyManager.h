@@ -18,7 +18,8 @@ class ProxyManager : public holpaca::registration::Service {
   ProxyManager() = default;
   bool add(std::string& address);
   void remove(std::string& address);
-  std::unordered_map<std::string, std::shared_ptr<Cache>> getCaches();
+  std::unordered_map<std::string, std::shared_ptr<ControlInterface>>
+  getCaches();
 
   // Registration Service
   grpc::Status connect(grpc::ServerContext* context,

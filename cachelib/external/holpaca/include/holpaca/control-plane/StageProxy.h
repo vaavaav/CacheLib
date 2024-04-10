@@ -12,7 +12,7 @@ using grpc::Channel;
 using grpc::ClientContext;
 
 namespace holpaca {
-class StageProxy : public Cache {
+class StageProxy : public ControlInterface {
   std::shared_ptr<grpc::Channel> m_channel;
   std::unique_ptr<holpaca::stage::Stub> m_stage;
 

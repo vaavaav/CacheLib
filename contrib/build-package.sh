@@ -61,7 +61,7 @@ NAME: the dependency to build supported values are:
   googlelog, googleflags, googletest,
   fmt, sparsemap,
   folly, fizz, wangle, fbthrift,
-  shards, holpaca
+  holpaca
   cachelib
 
   "
@@ -241,13 +241,8 @@ case "$1" in
 
   holpaca)
     NAME=holpaca
-    SRCDIR=cachelib/external/$NAME
-    ;;
-
-  shards)
-    NAME=Shards
-    REPO=https://github.com/vaavaav/SHARDS-cpp.git
-    REPODIR=cachelib/external/SHARDS-cpp
+    REPO=https://github.com/vaavaav/holpaca.git
+    REPODIR=cachelib/external/$NAME
     SRCDIR=$REPODIR
     external_git_clone=yes
     ;;

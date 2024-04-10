@@ -38,10 +38,6 @@
 #include <folly/Range.h>
 #pragma GCC diagnostic pop
 
-#include <Shards/Shards.h>
-#include <holpaca/Cache.h>
-#include <holpaca/data-plane/Stage.h>
-
 #include <shared_mutex>
 
 #include "cachelib/allocator/CCacheManager.h"
@@ -2026,42 +2022,6 @@ class CacheAllocator : public CacheBase {
 
   // the memory allocator for allocating out of the available memory.
   std::unique_ptr<MemoryAllocator> allocator_;
-
- public:
-  class PoolCache : public holpaca::Cache {
-    PoolId const m_kPoolId;
-    CacheAllocator* const m_kCacheAllocator;
-
-   public:
-    PoolCache(CacheAllocator* cacheAllocator, PoolId pid)
-        : m_kPoolId(pid),
-          m_kCacheAllocator(cacheAllocator){
-
-          };
-    void resize(size_t newSize) override final {
-      auto const oldSize = m_kCacheAllocator->getPoolStats(m_kPoolId).poolSize;
-      if (newSize > oldSize) {
-        m_kCacheAllocator->growPool(m_kPoolId, newSize - oldSize);
-      } else {
-        m_kCacheAllocator->shrinkPool(m_kPoolId, oldSize - newSize);
-      }
-    };
-
-    holpaca::Status getStatus() override final {
-      auto const poolStats = m_kCacheAllocator->getPoolStats(m_kPoolId);
-      auto const globalStats = m_kCacheAllocator->getGlobalCacheStats();
-      return holpaca::Status{poolStats.poolSize,
-                             poolStats.poolUsableSize,
-                             poolStats.numPoolGetHits,
-                             globalStats.numCacheGets,
-                             {},
-                             {}};
-    }
-  };
-
- private:
-  std::unordered_map<PoolId, std::unique_ptr<holpaca::Stage>> stages_;
-  std::shared_timed_mutex stagesLock_;
 
   // compact cache allocator manager
   std::unique_ptr<CCacheManager> compactCacheManager_;
