@@ -8,6 +8,7 @@ PoolCache<CacheTrait>::PoolCache(std::string name,
   if (cachelibInstance == nullptr) {
     throw std::invalid_argument("cachelib instance cannot be null");
   }
+  m_cachelibInstance = cachelibInstance;
   m_poolId = cachelibInstance->addPool(name, size);
   m_shards = std::shared_ptr<Shards>(Shards::fixedSize(0.001, 32000, 1));
 }
