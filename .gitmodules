@@ -19,3 +19,5 @@
 [submodule "cachelib/external/Shards"]
 	path = cachelib/external/Shards
 	url = https://github.com/vaavaav/SHARDS-cpp
+[submodule "cachelib/external/holpaca"]
+	url = https://gitfront.io/r/vaavaav/61cJfYrJYw25/holpaca.git
