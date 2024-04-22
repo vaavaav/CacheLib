@@ -241,7 +241,7 @@ case "$1" in
 
   holpaca)
     NAME=holpaca
-    REPO=https://github.com/vaavaav/holpaca.git
+    REPO=https://gitfront.io/r/vaavaav/61cJfYrJYw25/holpaca.git
     REPODIR=cachelib/external/$NAME
     SRCDIR=$REPODIR
     external_git_clone=yes
