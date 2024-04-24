@@ -15,8 +15,7 @@ RUN make install
 WORKDIR /
 
 # Install CacheLib-Holpaca
-RUN mkdir /CacheLib-Holpaca
-ADD --keep-git-dir=true https://github.com/vaavaav/CacheLib-Holpaca.git /CacheLib-Holpaca
+RUN git clone -b dev https://github.com/vaavaav/CacheLib-Holpaca.git
 CMD /bin/bash
 #WORKDIR /CacheLib-Holpaca
 # For now, checkout to dev
