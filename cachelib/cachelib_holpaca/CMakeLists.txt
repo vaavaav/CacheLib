@@ -4,6 +4,7 @@ add_library (cachelib_holpaca
 ./PoolCacheProxy.h
 ./PoolCacheProxy.cc
   )
+add_dependencies(cachelib_holpaca thrift_generated_files)
 
 target_link_libraries(cachelib_holpaca PUBLIC
 holpaca::holpaca Shards::Shards
