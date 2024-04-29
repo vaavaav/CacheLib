@@ -15,15 +15,10 @@ RUN make install
 WORKDIR /
 
 # Install CacheLib-Holpaca
-ENV BRANCH dev
-ADD https://api.github.com/repos/vaavaav/CacheLib-Holpaca/git/refs/heads/${BRANCH} dev/null
-RUN git clone --depth 1 -b ${BRANCH} https://github.com/vaavaav/CacheLib-Holpaca.git
+RUN git clone --depth 1 -b dev https://github.com/vaavaav/CacheLib-Holpaca
 WORKDIR /CacheLib-Holpaca
 RUN ./contrib/build.sh -d -j -v
 
-#
-##ENV PORT 50000
-##EXPOSE ${PORT}
-#EXPOSE 5000
-#
-#CMD build-cachelib/cachelib_holpaca/cachelib_holpaca_run off off 2000000000 localhost:4000 default 0.5 192.168.112.137:5000
+EXPOSE 5000
+EXPOSE 6000-6050
+ENTRYPOINT [ "/CacheLib-Holpaca/docker-entrypoint.py" ]
