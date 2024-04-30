@@ -23,11 +23,3 @@ install(
 install(TARGETS cachelib_holpaca
         EXPORT cachelib-exports
         DESTINATION ${LIB_INSTALL_DIR} )
-
-if (BUILD_SHARED_LIBS)
-  install(
-    TARGETS cachelib_holpaca
-    EXPORT cachelib-exports
-    DESTINATION ${LIB_INSTALL_DIR}
-  )
-endif ()

@@ -15,7 +15,7 @@ parser.add_argument("-i", "--ip", help="control plane registration ip address", 
 
 args = parser.parse_args(args=sys.argv[2:])
 
-hostname = socket.gethostname()
+hostname = socket.gethostbyname( socket.gethostname())
 
 def help():
     print('''
