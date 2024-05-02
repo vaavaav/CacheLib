@@ -2,14 +2,14 @@
 
 namespace facebook::cachelib {
 template <typename CacheTrait>
-PoolCache<CacheTrait>::PoolCache(std::string name,
-                                 size_t size,
-                                 std::shared_ptr<CacheTrait> cachelibInstance) {
+PoolCache<CacheTrait>::PoolCache(std::shared_ptr<CacheTrait> cachelibInstance,
+                                 PoolConfig poolConfig)
+    : Stage(poolConfig.stageConfig) {
   if (cachelibInstance == nullptr) {
     throw std::invalid_argument("cachelib instance cannot be null");
   }
   m_cachelibInstance = cachelibInstance;
-  m_poolId = cachelibInstance->addPool(name, size);
+  m_poolId = cachelibInstance->addPool(poolConfig.name, poolConfig.size);
   m_shards = std::shared_ptr<Shards>(Shards::fixedSize(0.001, 32000, 1));
 }
 

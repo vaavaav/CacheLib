@@ -2,13 +2,13 @@
 
 #include <Shards/Shards.h>
 #include <cachelib/allocator/CacheAllocator.h>
-#include <holpaca/Cache.h>
+#include <holpaca/data-plane/Stage.h>
 
 #include <shared_mutex>
 
 namespace facebook::cachelib {
 template <typename CacheTrait>
-class PoolCache : public holpaca::Cache {
+class PoolCache : public holpaca::Stage {
   uint64_t m_hits{0};
   uint64_t m_lookups{0};
   std::shared_mutex m_mutex;
@@ -17,9 +17,13 @@ class PoolCache : public holpaca::Cache {
   PoolId m_poolId;
 
  public:
-  PoolCache(std::string name,
-            size_t size,
-            std::shared_ptr<CacheTrait> cachelibInstance);
+  struct PoolConfig {
+    std::string name;
+    size_t size;
+    holpaca::StageConfig stageConfig;
+  };
+  PoolCache(std::shared_ptr<CacheTrait> cachelibInstance,
+            PoolConfig poolConfig);
   std::string get(std::string& key) override final;
   bool put(std::string& key, std::string& value) override final;
   bool remove(std::string& key) override final;
