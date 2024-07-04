@@ -95,8 +95,8 @@ find_package(Threads REQUIRED)
 
 find_package(Boost REQUIRED COMPONENTS
              system filesystem regex context program_options thread)
-find_package(Gflags REQUIRED)
-find_package(Glog REQUIRED)
+find_package(Gflags CONFIG REQUIRED)
+find_package(Glog CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 find_package(folly CONFIG REQUIRED)
 find_package(fizz CONFIG REQUIRED)
@@ -105,8 +105,8 @@ find_package(wangle CONFIG REQUIRED)
 find_package(Zlib REQUIRED)
 find_package(Zstd REQUIRED)
 find_package(FBThrift REQUIRED) # must come after wangle
-find_package(Shards CONFIG REQUIRED)
 find_package(holpaca CONFIG REQUIRED)
+find_package(flows CONFIG REQUIRED)
 
 # FBThrift - generates h/cpp files from .*thrift files
 find_program(FBTHRIFT1 thrift1

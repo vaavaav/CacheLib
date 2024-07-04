@@ -17,7 +17,8 @@ WORKDIR /
 # Install CacheLib-Holpaca
 RUN git clone --depth 1 -b dev https://github.com/vaavaav/CacheLib-Holpaca
 WORKDIR /CacheLib-Holpaca
-RUN ./contrib/build.sh -d -j -v
+RUN ./contrib/build.sh -d -j -v -p /
+WORKDIR /
 
 EXPOSE 5000
 EXPOSE 6000-6050

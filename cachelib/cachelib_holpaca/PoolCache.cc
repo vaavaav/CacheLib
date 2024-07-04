@@ -10,7 +10,7 @@ PoolCache<CacheTrait>::PoolCache(std::shared_ptr<CacheTrait> cachelibInstance,
   }
   m_cachelibInstance = cachelibInstance;
   m_poolId = cachelibInstance->addPool(poolConfig.name, poolConfig.size);
-  m_shards = std::shared_ptr<Shards>(Shards::fixedSize(0.001, 32000, 1));
+  m_flows = std::make_shared<Flows>(0); // maxItems is not working yet
 }
 
 template <typename CacheTrait>
@@ -18,7 +18,7 @@ std::string PoolCache<CacheTrait>::get(std::string& key) {
   auto handle = m_cachelibInstance->find(key);
   std::unique_lock<std::shared_mutex> lock(m_mutex);
   m_lookups++;
-  m_shards->feed(key);
+  m_flows->read(key);
   if (handle != nullptr) {
     m_hits++;
     return std::string(reinterpret_cast<const char*>(handle->getMemory()),
@@ -33,6 +33,7 @@ bool PoolCache<CacheTrait>::put(std::string& key, std::string& value) {
   if (!handle) {
     return false;
   }
+  m_flows->write(key, key.size() + value.size());
   std::memcpy(handle->getMemory(), value.data(), value.size());
   m_cachelibInstance->insertOrReplace(handle);
   return true;
@@ -57,13 +58,15 @@ void PoolCache<CacheTrait>::resize(size_t newSize) {
 template <typename CacheTrait>
 holpaca::Status PoolCache<CacheTrait>::getStatus() {
   auto stats = m_cachelibInstance->getPoolStats(m_poolId);
+  auto mrc = m_flows->bmrc();
+  std::map<uint64_t, double> mrc2(mrc.begin(), mrc.end());
+
   holpaca::Status status{
-      stats.poolSize, stats.poolUsableSize, m_hits, m_lookups, {},
-      m_shards->mrc()};
+      stats.poolSize, stats.poolUsableSize, m_hits, m_lookups, {}, mrc2};
   return status;
 }
 template class PoolCache<LruAllocator>;
-template class PoolCache<LruAllocatorSpinBuckets>;
-template class PoolCache<Lru2QAllocator>;
-template class PoolCache<TinyLFUAllocator>;
+// template class PoolCache<LruAllocatorSpinBuckets>;
+// template class PoolCache<Lru2QAllocator>;
+// template class PoolCache<TinyLFUAllocator>;
 } // namespace facebook::cachelib

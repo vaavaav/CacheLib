@@ -1,6 +1,5 @@
 #pragma once
-
-#include <Shards/Shards.h>
+#include <Flows/Flows.h>
 #include <cachelib/allocator/CacheAllocator.h>
 #include <holpaca/data-plane/Stage.h>
 
@@ -12,7 +11,7 @@ class PoolCache : public holpaca::Stage {
   uint64_t m_hits{0};
   uint64_t m_lookups{0};
   std::shared_mutex m_mutex;
-  std::shared_ptr<Shards> m_shards;
+  std::shared_ptr<Flows> m_flows;
   std::shared_ptr<CacheTrait> m_cachelibInstance;
   PoolId m_poolId;
 

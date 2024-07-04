@@ -61,7 +61,7 @@ NAME: the dependency to build supported values are:
   googlelog, googleflags, googletest,
   fmt, sparsemap,
   folly, fizz, wangle, fbthrift,
-  Shards, holpaca 
+  flows, holpaca 
   cachelib
 
   "
@@ -246,9 +246,9 @@ case "$1" in
     SRCDIR=$REPODIR
     external_git_clone=yes
     ;;
-  Shards)
-    NAME=Shards
-    REPO=https://github.com/vaavaav/SHARDS-cpp.git
+  flows)
+    NAME=flows
+    REPO=https://gitfront.io/r/vaavaav/davMvwJ8jxJv/flows-cpp.git
     REPODIR=cachelib/external/$NAME
     SRCDIR=$REPODIR
     external_git_clone=yes
@@ -257,6 +257,7 @@ case "$1" in
   cachelib)
     NAME=cachelib
     SRCDIR=cachelib
+    cmake_custom_params="-DCMAKE_FIND_DEBUG_MODE=ON"
     if test "$build_tests" = "yes" ; then
         cmake_custom_params="$cmake_custom_params -DBUILD_TESTS=ON"
     else

@@ -9,12 +9,12 @@ add_library (cachelib_holpaca
 
 add_dependencies(cachelib_holpaca thrift_generated_files)
 
-add_executable (cachelib-holpaca-run-pool-caches RunPoolCaches.cc)
-target_link_libraries(cachelib-holpaca-run-pool-caches PUBLIC cachelib cachelib_holpaca)
-
 target_link_libraries(cachelib_holpaca PUBLIC
-holpaca::holpaca Shards::Shards
+holpaca::holpaca flows::flows cachelib_allocator
 )
+
+add_executable (cachelib-holpaca-run-pool-caches RunPoolCaches.cc)
+target_link_libraries(cachelib-holpaca-run-pool-caches PUBLIC cachelib_holpaca)
 
 install(
   TARGETS

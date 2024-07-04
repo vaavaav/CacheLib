@@ -6,6 +6,7 @@ import argparse
 import socket
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-e", "--executable", help="path to bin directory", default="opt/cachelib")
 parser.add_argument("-r", "--pool-resizer", help="enable pool resizer", action="store_true")
 parser.add_argument("-o", "--pool-optimizer", help="enable pool optimizer", action="store_true")
 parser.add_argument("-c", "--cache-size", help="set cache size", type=int, default=2_000_000_000)
@@ -43,7 +44,7 @@ if (sys.argv[1]) == "stage":
         exit(0)
     for i, (poolname, _) in enumerate(args.pool):
         print(f"{poolname}: {6000+i}")
-    os.system(f"{os.getcwd()}/opt/cachelib/bin/cachelib-holpaca-run-pool-caches {'on' if args.pool_resizer else 'off'} {'on' if args.pool_optimizer else 'off'} {args.cache_size} {args.ip}:5000 {' '.join([f'{poolname} {poolsize} {hostname}:{6000+i}' for i, (poolname, poolsize) in enumerate(args.pool)])}")
+    os.system(f"{args.executable}/bin/cachelib-holpaca-run-pool-caches {'on' if args.pool_resizer else 'off'} {'on' if args.pool_optimizer else 'off'} {args.cache_size} {args.ip}:5000 {' '.join([f'{poolname} {poolsize} {hostname}:{6000+i}' for i, (poolname, poolsize) in enumerate(args.pool)])}")
 elif (sys.argv[1]) == "controller":
     os.system(f"./build-holpaca/bin/controller {hostname}:5000 {args.log_file}")
 else:

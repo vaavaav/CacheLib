@@ -16,19 +16,19 @@ int main(int argc, char** argv) {
   }
 
   uint32_t total_cache_size = std::stoul(argv[3]);
-  std::vector<PoolCache<Lru2QAllocator>::PoolConfig> poolConfigs;
+  std::vector<PoolCache<LruAllocator>::PoolConfig> poolConfigs;
 
   for (int i = 5; i < argc; i += 3) {
     holpaca::StageConfig stageConfig;
     stageConfig.setLogger("/tmp/" + std::string(argv[i]) + ".log")
         .setRegistrationAddress(argv[4])
         .setServiceAddress(argv[i + 2]);
-    poolConfigs.emplace_back(PoolCache<Lru2QAllocator>::PoolConfig{
+    poolConfigs.emplace_back(PoolCache<LruAllocator>::PoolConfig{
         argv[i], std::stoul(argv[i + 1]), stageConfig});
   }
 
-  CacheLibHolpaca<Lru2QAllocator> cache(total_cache_size, argv[1] == "on",
-                                        argv[2] == "on", poolConfigs);
+  CacheLibHolpaca<LruAllocator> cache(total_cache_size, argv[1] == "on",
+                                      argv[2] == "on", poolConfigs);
 
   while (1) {
     std::this_thread::sleep_for(std::chrono::seconds(10));

@@ -40,8 +40,8 @@ std::shared_ptr<PoolCache<CacheTrait>> CacheLibHolpaca<CacheTrait>::operator[](
 }
 
 template class CacheLibHolpaca<LruAllocator>;
-template class CacheLibHolpaca<LruAllocatorSpinBuckets>;
-template class CacheLibHolpaca<Lru2QAllocator>;
-template class CacheLibHolpaca<TinyLFUAllocator>;
+// template class CacheLibHolpaca<LruAllocatorSpinBuckets>;
+// template class CacheLibHolpaca<Lru2QAllocator>;
+// template class CacheLibHolpaca<TinyLFUAllocator>;
 
 } // namespace facebook::cachelib
