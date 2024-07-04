@@ -1,7 +1,7 @@
 #pragma once
 #include <holpaca/Cache.h>
-#include <holpaca/protos/holpaca.grpc.pb.h>
-#include <holpaca/protos/holpaca.pb.h>
+#include <holpaca/data-plane/Stage.grpc.pb.h>
+#include <holpaca/data-plane/Stage.pb.h>
 
 using grpc::Channel;
 using grpc::ClientContext;

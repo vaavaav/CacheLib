@@ -89,7 +89,7 @@ build_arch()
 
 build_dependencies()
 {
-  for pkg in zstd googleflags googlelog googletest sparsemap fmt folly fizz wangle fbthrift Flows holpaca;
+  for pkg in zstd googleflags googlelog googletest sparsemap fmt folly fizz wangle fbthrift flows holpaca;
   do
     # shellcheck disable=SC2086
     ./contrib/build-package.sh $pass_params "$pkg" \
