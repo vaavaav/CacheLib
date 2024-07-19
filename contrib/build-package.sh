@@ -61,7 +61,7 @@ NAME: the dependency to build supported values are:
   googlelog, googleflags, googletest,
   fmt, sparsemap,
   folly, fizz, wangle, fbthrift,
-  flows, holpaca 
+  grpc, flows 
   cachelib
 
   "
@@ -239,13 +239,17 @@ case "$1" in
     cmake_custom_params="-DBUILD_SHARED_LIBS=ON"
     ;;
 
-  holpaca)
-    NAME=holpaca
-    REPO=https://gitfront.io/r/vaavaav/61cJfYrJYw25/holpaca.git
+  grpc)
+    NAME=grpc
+    REPO=https://github.com/grpc/grpc
     REPODIR=cachelib/external/$NAME
     SRCDIR=$REPODIR
+    update_submodules=yes
     external_git_clone=yes
+    external_git_tag="v1.50.2"
+    cmake_custom_params="-DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DgRPC_ZLIB_PROVIDER=package"
     ;;
+
   flows)
     NAME=flows
     REPO=https://gitfront.io/r/vaavaav/davMvwJ8jxJv/flows-cpp.git
