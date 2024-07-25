@@ -3,6 +3,7 @@
 
 #include "Stage.h"
 #include "cachelib/allocator/CacheAllocator.h"
+#include "cachelib/holpaca/data-plane/CacheAllocatorConfig.h"
 
 namespace facebook {
 namespace cachelib {
@@ -11,19 +12,16 @@ template <typename CacheTrait>
 class CacheAllocator : public Cache,
                        public ::facebook::cachelib::CacheAllocator<CacheTrait> {
   std::shared_ptr<Stage> m_stage;
-
   void resize(std::unordered_map<int32_t, uint64_t> newSizes) override final;
   std::unordered_map<int32_t, PoolStatus> getStatus() override final;
-
   std::unordered_map<int32_t, std::shared_ptr<Flows>> m_flows;
   using Super = ::facebook::cachelib::CacheAllocator<CacheTrait>;
 
  public:
-  using Config = ::facebook::cachelib::CacheAllocatorConfig<Super>;
+  using Trait = CacheTrait;
+  using Config = CacheAllocatorConfig<CacheAllocator<CacheTrait>>;
 
-  CacheAllocator(Config config,
-                 std::string address,
-                 std::string controllerAddress);
+  CacheAllocator(Config config);
 
   PoolId addPool(std::string name, size_t size);
 

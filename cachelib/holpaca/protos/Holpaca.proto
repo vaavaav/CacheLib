@@ -8,8 +8,7 @@ service Stage {
 }
 
 service Controller {
-    rpc Register(RegisterRequest) returns (RegisterResponse) {}
-    rpc Unregister(UnregisterRequest) returns (UnregisterResponse) {}
+    rpc KeepAlive(KeepAliveRequest) returns (KeepAliveResponse) {}
 }
 
 message GetStatusRequest {}
@@ -24,25 +23,15 @@ message GetStatusResponse {
 }
 
 message ResizeRequest {
-    map<int32, int64> newSizes = 1;
+    map<int32, uint64> newSizes = 1;
 }
 
 message ResizeResponse {
     int32 size = 1;
 }
 
-message RegisterRequest {
+message KeepAliveRequest {
     string address = 1;
 }
 
-message RegisterResponse {
-    bool success = 1;
-}
-
-message UnregisterRequest {
-    string address = 1;
-}
-
-message UnregisterResponse {
-    bool success = 1;
-}
+message KeepAliveResponse {}

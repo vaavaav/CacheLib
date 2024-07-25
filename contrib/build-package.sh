@@ -60,7 +60,7 @@ NAME: the dependency to build supported values are:
   zstd
   googlelog, googleflags, googletest,
   fmt, sparsemap,
-  folly, fizz, wangle, fbthrift,
+  folly, fizz, wangle, fbthrift
   grpc, flows 
   cachelib
 
@@ -107,6 +107,7 @@ test "$#" -eq 0 \
 ######################################
 
 external_git_clone=
+git_clone_flags=
 external_git_branch=
 # external_git_tag can also be used for commit hashes
 external_git_tag=
@@ -241,13 +242,13 @@ case "$1" in
 
   grpc)
     NAME=grpc
-    REPO=https://github.com/grpc/grpc
+    REPO=https://github.com/grpc/grpc.git
     REPODIR=cachelib/external/$NAME
     SRCDIR=$REPODIR
-    update_submodules=yes
     external_git_clone=yes
-    external_git_tag="v1.50.2"
-    cmake_custom_params="-DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DgRPC_ZLIB_PROVIDER=package"
+    external_git_tag="v1.50.1"
+    git_clone_flags="-b $external_git_tag --depth 1 --recurse-submodules --shallow-submodules"
+    cmake_custom_params="-DBUILD_SHARED_LIBS=ON -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DgRPC_ZLIB_PROVIDER=package -DgRPC_SSL_PROVIDER=package -DABSL_PROPAGATE_CXX_STD=ON -Dprotobuf_WITH_ZLIB=ON"
     ;;
 
   flows)
@@ -327,7 +328,7 @@ if test "$source" ; then
         || die "failed to fetch git repository for '$NAME' in '$SRCDIR'"
     else
       # Clone new repository directory
-      git clone "$REPO" "$REPODIR" \
+      git clone $git_clone_flags "$REPO" "$REPODIR" \
         || die "failed to clone git repository $REPO to '$REPODIR'"
     fi
 
@@ -344,6 +345,7 @@ if test "$source" ; then
     fi
 
   fi
+
 
   if test "$update_submodules" ; then
     ./contrib/update-submodules.sh || die "failed to update git-submodules"

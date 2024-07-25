@@ -31,28 +31,29 @@ add_custom_command(
         "${holpaca_proto_file}"
       DEPENDS "${holpaca_proto_file}")
 
-add_library(holpaca_stage
+add_library(cachelib_holpaca_proto
   ${holpaca_proto_hdrs}
   ${holpaca_grpc_hdrs}
-  ./data-plane/Stage.h
-  ./data-plane/CacheAllocator.h
   ${holpaca_proto_srcs}
   ${holpaca_grpc_srcs}
-  ./data-plane/Stage.cpp
-  ./data-plane/CacheAllocator.cpp
 )
 
-add_dependencies(holpaca_stage thrift_generated_files)
-target_link_libraries(holpaca_stage PUBLIC
-  cachelib_allocator
+target_link_libraries(cachelib_holpaca_proto PUBLIC
   ${_REFLECTION}
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF}
-  flows::flows
 )
 
-install(TARGETS holpaca_stage
+add_subdirectory(data-plane)
+add_subdirectory(control-plane)
+
+add_library(cachelib_holpaca INTERFACE)
+target_link_libraries(cachelib_holpaca INTERFACE
+  cachelib_holpaca_data
+  cachelib_holpaca_control
+  cachelib_holpaca_proto
+)
+
+install(TARGETS cachelib_holpaca cachelib_holpaca_proto
         EXPORT cachelib-exports
         DESTINATION ${LIB_INSTALL_DIR} )
-
-#add_subdirectory(control-plane)

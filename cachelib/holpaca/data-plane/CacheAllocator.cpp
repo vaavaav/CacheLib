@@ -8,13 +8,10 @@ namespace cachelib {
 namespace holpaca {
 
 template <typename CacheTrait>
-CacheAllocator<CacheTrait>::CacheAllocator(Config config,
-                                           std::string address,
-                                           std::string controllerAddress)
-    : ::facebook::cachelib::CacheAllocator<CacheTrait>(
-          std::move(static_cast<typename Super::Config>(config))) {
-  m_stage = std::make_shared<Stage>(static_cast<Cache*>(this), address,
-                                    controllerAddress);
+CacheAllocator<CacheTrait>::CacheAllocator(Config config)
+    : ::facebook::cachelib::CacheAllocator<CacheTrait>(config.m_config) {
+  m_stage = std::make_shared<Stage>(static_cast<Cache*>(this), config.m_address,
+                                    config.m_controllerAddress);
 }
 
 template <typename CacheTrait>

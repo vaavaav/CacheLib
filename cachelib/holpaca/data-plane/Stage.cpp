@@ -17,34 +17,32 @@ Stage::Stage(Cache* const cache,
              std::string controllerAddress) {
   if (cache == NULL) {
     std::cerr << "Cache cannot be null" << std::endl;
+    abort();
   }
   m_cache = cache;
   m_server = grpc::ServerBuilder()
                  .AddListeningPort(address, grpc::InsecureServerCredentials())
                  .RegisterService(this)
                  .BuildAndStart();
-  m_serverThread = std::thread([this] { m_server->Wait(); });
-
-  m_controllerStub = ::holpaca::Controller::NewStub(grpc::CreateChannel(
-      controllerAddress, grpc::InsecureChannelCredentials()));
-  grpc::ClientContext ctx;
-  ::holpaca::RegisterRequest req;
-  ::holpaca::RegisterResponse rep;
-  req.set_address(address);
-
-  m_controllerStub->Register(&ctx, req, &rep);
-  if (!rep.success()) {
-    std::cerr << "Failed to register stage with controller" << std::endl;
-  }
   m_address = address;
+  m_serverThread = std::thread([this] { m_server->Wait(); });
+  m_keepAliveThread = std::thread([this, controllerAddress, address] {
+    auto controllerStub = ::holpaca::Controller::NewStub(grpc::CreateChannel(
+        controllerAddress, grpc::InsecureChannelCredentials()));
+    while (!m_stop) {
+      grpc::ClientContext ctx;
+      ::holpaca::KeepAliveRequest req;
+      ::holpaca::KeepAliveResponse rep;
+      req.set_address(m_address);
+      controllerStub->KeepAlive(&ctx, req, &rep);
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  });
 }
 
 Stage::~Stage() {
-  grpc::ClientContext ctx;
-  ::holpaca::UnregisterRequest req;
-  ::holpaca::UnregisterResponse rep;
-  req.set_address(m_address);
-  m_controllerStub->Unregister(&ctx, req, &rep);
+  m_stop.exchange(true);
+  m_keepAliveThread.join();
   m_server->Shutdown();
   m_serverThread.join();
 }

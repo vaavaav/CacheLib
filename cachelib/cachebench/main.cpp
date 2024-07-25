@@ -55,11 +55,6 @@ DEFINE_string(progress_stats_file,
 DEFINE_int32(timeout_seconds,
              0,
              "Maximum allowed seconds for running test. 0 means no timeout");
-DEFINE_uint64(
-  holpaca_periodicity,
-  0,
-  ""
-);
 
 struct sigaction act;
 std::unique_ptr<facebook::cachelib::cachebench::Runner> runnerInstance;

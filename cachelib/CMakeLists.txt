@@ -350,7 +350,7 @@ target_link_libraries(cachelib INTERFACE
      cachelib_shm
      cachelib_navy
      cachelib_allocator
-     holpaca_stage
+     cachelib_holpaca
      )
 target_include_directories(
   cachelib
@@ -372,7 +372,7 @@ install(EXPORT cachelib-exports
 
 if (BUILD_SHARED_LIBS)
   set_target_properties(
-    holpaca_stage
+    cachelib_holpaca
     cachelib_allocator
     cachelib_cachebench
     cachelib_common

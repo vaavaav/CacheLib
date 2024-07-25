@@ -11,6 +11,8 @@ cachelib/external/gflags/
 cachelib/external/glog/
 cachelib/external/googletest/
 cachelib/external/sparsemap/
+cachelib/external/grpc/
+cachelib/external/protobuf/
 opt
 
 # cpp gitignore

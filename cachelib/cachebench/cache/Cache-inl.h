@@ -47,26 +47,20 @@ Cache<Allocator>::Cache(const CacheConfig& config,
       std::chrono::seconds(config_.poolRebalanceIntervalSec));
 
   allocatorConfig_.enablePoolResizing(
-    config_.getResizeStrategy(),
-    std::chrono::seconds(config_.poolResizeIntervalSec),
-    config_.resizeMinSlabs
-  );
+      config_.getResizeStrategy(),
+      std::chrono::seconds(config_.poolResizeIntervalSec),
+      config_.resizeMinSlabs);
 
-if(config_.trackTailHits && config_.allocator == "LRU2Q") {
-  allocatorConfig_.enableTailHitsTracking();
-}
+  if (config_.trackTailHits && config_.allocator == "LRU2Q") {
+    allocatorConfig_.enableTailHitsTracking();
+  }
 
-if(config_.getOptimizeStrategy()) {
-  allocatorConfig_.enablePoolOptimizer(
-    config_.getOptimizeStrategy(),
-    std::chrono::seconds(config_.poolOptimizeIntervalSec),
-    std::chrono::seconds(0),
-    0
-  );
-}
-  
-  if (!gflags::GetCommandLineFlagInfoOrDie("holpaca_periodicity").is_default) {
-    allocatorConfig_.enableHolpaca(std::chrono::milliseconds(FLAGS_holpaca_periodicity));
+  if (config_.getOptimizeStrategy()) {
+    allocatorConfig_.enablePoolOptimizer(
+        config_.getOptimizeStrategy(),
+        std::chrono::seconds(config_.poolOptimizeIntervalSec),
+        std::chrono::seconds(0),
+        0);
   }
 
   if (config_.moveOnSlabRelease && movingSync != nullptr) {

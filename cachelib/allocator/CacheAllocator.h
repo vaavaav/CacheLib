@@ -1057,11 +1057,6 @@ class CacheAllocator : public CacheBase {
   // @param reaperThrottleConfig    throttling config
   bool startNewReaper(std::chrono::milliseconds interval,
                       util::Throttler::Config reaperThrottleConfig);
-  template <typename T, typename... Args>
-  bool startNewHolpacaStage(std::chrono::milliseconds interval, Args&&... args);
-
-  bool startNewTracker(std::chrono::milliseconds interval,
-                       std::string pathToFile);
 
   // Stop existing workers with a timeout
   bool stopPoolRebalancer(std::chrono::seconds timeout = std::chrono::seconds{
@@ -1071,8 +1066,6 @@ class CacheAllocator : public CacheBase {
                              0});
   bool stopMemMonitor(std::chrono::seconds timeout = std::chrono::seconds{0});
   bool stopReaper(std::chrono::seconds timeout = std::chrono::seconds{0});
-  bool stopHolpacaStage(std::chrono::seconds timeout = std::chrono::seconds{0});
-  bool stopTracker(std::chrono::seconds timeout = std::chrono::seconds{0});
 
   // Set pool optimization to either true or false
   //

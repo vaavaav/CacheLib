@@ -5,6 +5,7 @@
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
 
+#include <atomic>
 #include <memory>
 #include <thread>
 
@@ -19,8 +20,9 @@ class Stage : public ::holpaca::Stage::Service {
   std::string m_address;
   std::shared_ptr<grpc::Server> m_server;
   Cache* m_cache;
-  std::unique_ptr<::holpaca::Controller::Stub> m_controllerStub;
+  std::thread m_keepAliveThread;
   std::thread m_serverThread;
+  std::atomic_bool m_stop{false};
 
  public:
   Stage(Cache* const cache, std::string address, std::string controllerAddress);

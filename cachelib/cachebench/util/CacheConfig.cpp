@@ -18,8 +18,8 @@
 
 #include "cachelib/allocator/HitsPerSlabStrategy.h"
 #include "cachelib/allocator/LruTailAgeStrategy.h"
-#include "cachelib/allocator/RandomStrategy.h"
 #include "cachelib/allocator/MarginalHitsOptimizeStrategy.h"
+#include "cachelib/allocator/RandomStrategy.h"
 
 namespace facebook {
 namespace cachelib {
@@ -54,8 +54,7 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
 
   JSONSetVal(configJson, lru2qHotPct);
   JSONSetVal(configJson, lru2qColdPct);
-  JSONSetVal(configJson,
-  trackTailHits);
+  JSONSetVal(configJson, trackTailHits);
 
   JSONSetVal(configJson, allocFactor);
   JSONSetVal(configJson, maxAllocSize);
@@ -124,14 +123,14 @@ CacheConfig::CacheConfig(const folly::dynamic& configJson) {
 }
 
 std::shared_ptr<PoolOptimizeStrategy> CacheConfig::getOptimizeStrategy() const {
-  if(poolOptimizeIntervalSec == 0) {
+  if (poolOptimizeIntervalSec == 0) {
     return nullptr;
   }
   return std::make_shared<MarginalHitsOptimizeStrategy>();
 }
 
 std::shared_ptr<RebalanceStrategy> CacheConfig::getResizeStrategy() const {
-  if(poolResizeIntervalSec == 0) {
+  if (poolResizeIntervalSec == 0) {
     return nullptr;
   }
 
