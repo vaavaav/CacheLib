@@ -122,7 +122,7 @@ case "$1" in
     SRCDIR=$REPODIR
     external_git_clone=yes
     external_git_tag="v0.5.0"
-    cmake_custom_params="-DBUILD_SHARED_LIBS=ON"
+    cmake_custom_params="-DBUILD_SHARED_LIBS=ON -DWITH_GFLAGS=OFF"
     ;;
 
   googleflags)
@@ -132,7 +132,7 @@ case "$1" in
     SRCDIR=$REPODIR
     external_git_clone=yes
     external_git_tag="v2.2.2"
-    cmake_custom_params="-DGFLAGS_BUILD_SHARED_LIBS=YES"
+    cmake_custom_params="-DGFLAGS_BUILD_SHARED_LIBS=YES -DCMAKE_INSTALL_RPATH='$PREFIX/lib;$PREFIX/lib64'"
     if test "$build_tests" = "yes" ; then
         cmake_custom_params="$cmake_custom_params -DGFLAGS_BUILD_TESTING=YES"
     else
@@ -248,7 +248,7 @@ case "$1" in
     external_git_clone=yes
     external_git_tag="v1.50.1"
     git_clone_flags="-b $external_git_tag --depth 1 --recurse-submodules --shallow-submodules"
-    cmake_custom_params="-DBUILD_SHARED_LIBS=ON -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DgRPC_ZLIB_PROVIDER=package -DgRPC_SSL_PROVIDER=package -DABSL_PROPAGATE_CXX_STD=ON -Dprotobuf_WITH_ZLIB=ON"
+    cmake_custom_params="-DBUILD_SHARED_LIBS=ON -DgRPC_INSTALL=ON -DgRPC_BUILD_TESTS=OFF -DgRPC_ZLIB_PROVIDER=package -DgRPC_SSL_PROVIDER=package -DABSL_PROPAGATE_CXX_STD=ON"
     ;;
 
   flows)
